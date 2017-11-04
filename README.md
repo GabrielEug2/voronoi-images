@@ -1,11 +1,9 @@
 # voronoi
-Voronoi Images
-Alguns links úteis:
+### Voronoi Images
 
-https://www.youtube.com/watch?v=7eCrHAv6sYY
-https://www.youtube.com/watch?v=Y5X1TvN9TpM
+Implementação do Algoritmo de Bowyer-Watson
 
-Algoritmo pra criar os diagramas:
-https://en.wikipedia.org/wiki/Fortune%27s_algorithm
-não é sobre imagens mas tem bastante coisa interessante:
-http://www-cs-students.stanford.edu/~amitp/game-programming/polygon-map-generation/
+TODO:
+*Refatorar o código
+*Melhorar o algoritmo (implementar o fortune?)
+*Tirar as linhas brancas, como? (ou não tirar)
