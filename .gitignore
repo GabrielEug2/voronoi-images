@@ -1,2 +1,6 @@
 rbtree.py
 img/
+__pycache__/
+*.bmp
+*.jpg
+*.png
