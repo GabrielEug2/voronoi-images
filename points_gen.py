@@ -3,6 +3,7 @@ import numpy as np
 import random
 from random import randint
 from voronoi import Point
+from collections import defaultdict
 
 def random_points(img, n):
     altura = img.shape[0]
@@ -10,11 +11,17 @@ def random_points(img, n):
 
     #points_img = np.zeros((altura, largura, 1), np.uint8)
     points = []
+    unique = defaultdict(int)
 
     #Gera N pontos aleatórios
     for i in range(0, n):
         x = randint(0, largura-1)
         y = randint(0, altura-1)
+        # garante que nenhum ponto vai ser igual
+        while unique[(x,y)] == 1:
+            x = randint(0, largura-1)
+            y = randint(0, altura-1)
+        unique[(x,y)] = 1
         points.append(Point(x, y))
         #points_img[y, x] = 255
 
@@ -52,6 +59,10 @@ def random_plus_edges(img, n):
     for i in range(0, n_from_random):
         x = randint(0, largura-1)
         y = randint(0, altura-1)
+        while unique[(x,y)] == 1:
+            x = randint(0, largura-1)
+            y = randint(0, altura-1)
+        unique[(x,y)] = 1
         points.append(Point(x, y))
 
     return points

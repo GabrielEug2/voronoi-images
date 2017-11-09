@@ -8,10 +8,6 @@ from collections import defaultdict
 black = (0, 0, 0)
 white = (255, 255, 255)
 
-#####################################################################
-### Bowyer Watson, vai inserindo um ponto de cada vez
-#####################################################################
-
 class Point(object):
     def __init__(self, x, y, color=None):
         self.x = x
@@ -30,8 +26,8 @@ class Point(object):
         dy = self.y - p.y
         return math.hypot(dx, dy)
 
-    # Se a distancia do circuncentro do triangulo ate o ponto
-    # e menor que o raio, esta dentro do circuncirculo
+    # Se a distância do circuncentro do triângulo até o ponto
+    # é menor que o raio, está dentro do circuncirculo
     def is_in_circuncircle(self, triangle):
         return self.dist(triangle.center) <= triangle.cr
 
@@ -73,16 +69,14 @@ class Triangle(object):
 
     # Calcula o circuncentro (retorna as coordenadas x,y e o raio)
     # Retirado de: http://www.ics.uci.edu/~eppstein/junkyard/circumcenter.html (segundo comentário)
-    # Pode dar problema (d = 0), especialmente com NUM_POINTS grande
-    # Tem que ver como resolver isso... ou como implementar o fortune...
-    ### solução temporária: se d==0, d=1
+    # Pode dar problema (pontos colineares que resultam em d = 0) mas é raro
     def circumcenter(self):
         p1 = self.p1
         p2 = self.p2
         p3 = self.p3
         d = (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y)
         if d == 0:
-            d=1
+            print("Erro, pontos colineares")
         cx = (((p1.x - p3.x) * (p1.x + p3.x) + (p1.y - p3.y) * (p1.y + p3.y)) / 2 * (p2.y - p3.y) \
         -((p2.x - p3.x) * (p2.x + p3.x) + (p2.y - p3.y) * (p2.y + p3.y)) / 2 * (p1.y - p3.y)) \
         / d
@@ -95,19 +89,18 @@ class Triangle(object):
 
         return cx, cy, cr
 
-### Nao usa para o Voronoi, mas vou deixar aqui por enquanto.
-### Se achar que não vai usar mesmo pode tirar
-#    # Verifica se algum ponto do super triangulo esta sendo usado
-#    def contains_super(self, super_tri):
-#        # Set guarda valores unicos
-#        s = set([self.p1, self.p2, self.p3, super_tri.p1, super_tri.p2, super_tri.p3])
-#        # Entao se nao tiver 6 tem algum igual
-#        return len(s) != 6
+
+    # Verifica se algum ponto do super triangulo esta sendo usado
+    def contains_super(self, super_tri):
+        # Set guarda valores unicos
+        s = set([self.p1, self.p2, self.p3, super_tri.p1, super_tri.p2, super_tri.p3])
+        # Entao se nao tiver 6 tem algum igual
+        return len(s) != 6
 
     # Procura os vizinhos de cada triangulo
+    # Para cada aresta do triangulo, olha os outros
+    # triângulos da triangulação procurando por uma aresta igual
     def find_neighboors(self, triangulation):
-        # Para cada uma das 3 arestas do triangulo, olha os outros
-        # triângulos da triangulação para ver se tem a aresta igual
         for edge in self.edges:
             shared = False
             for triangle in triangulation:
@@ -122,15 +115,17 @@ class Triangle(object):
                 if shared:
                     break
 
-def bowyer_watson(image, altura, largura, points):
-    # Bowyer-Watson
-    # https://en.wikipedia.org/wiki/Bowyer%E2%80%93Watson_algorithm
-    # Ainda e lento...
 
+#####################################################################
+### Bowyer Watson, vai inserindo um ponto de cada vez
+### https://en.wikipedia.org/wiki/Bowyer%E2%80%93Watson_algorithm
+#####################################################################
+
+def bowyer_watson(image, height, width, points):
     # Pontos que criam um "super-triangulo" que contem o plano inteiro
-    sp1 = Point(-math.ceil(largura*1.5), -1) # a esquerda, encima
-    sp2 = Point(math.ceil(largura*2.5), -1) # a direita, encima
-    sp3 = Point(largura//2, math.ceil(altura*2.5)) # centralizado, embaixo
+    sp1 = Point(-math.ceil(width*1.5), -1) # a esquerda, encima
+    sp2 = Point(math.ceil(width*2.5), -1) # a direita, encima
+    sp3 = Point(width//2, math.ceil(height*2.5)) # centralizado, embaixo
     super_tri = Triangle(sp1, sp2, sp3)
 
     triangulation = []
@@ -161,7 +156,7 @@ def bowyer_watson(image, altura, largura, points):
 
     # Nao precisa disso pro voronoi:
     # Remove os triangulos que contem vertices do super triangulo
-    # Resultado e a triangulação de delaunay
+    # Resultado é a triangulação de delaunay
     #result = [tri for tri in triangulation if not tri.contains_super(super_tri)]
     #for triangle in result:
         #for edge in triangle:
@@ -177,44 +172,45 @@ def bowyer_watson(image, altura, largura, points):
     print("Gerando o diagrama de Voronoi...")
     # Liga os circuncentros dos triângulos vizinhos,
     # gerando o diagrama de voronoi
-    diag = np.zeros((altura, largura, 3), np.uint8)
+    diag = np.zeros((height, width, 3), np.uint8)
     for triangle in triangulation:
         for neighboor in triangle.neighboors:
             c1 = (math.floor(triangle.cx), math.floor(triangle.cy))
             c2 = (math.floor(neighboor.cx), math.floor(neighboor.cy))
             cv2.line(diag, c1, c2, white, 1)
     #showImg(diag)
-    salvaImagem(diag, 'voronoi.bmp')
+    #saveImage(diag, 'voronoi.png')
+    voronoi = diag.copy()
     out = diag.copy()
 
-    # Flood fill: para cada célula (blob preto, cercado por
-    # arestas brancas), dá um label diferente
-    next_color = [0, 0, 0]
-    for y in range(altura):
-        for x in range(largura):
-            color = diag[y][x]
-            if tuple(color) == black:
-                next_color[0] += 1
-                cv2.floodFill(diag, None, (x, y), tuple(next_color))
-                # evita estourar
-                if next_color[0] == 255:
-                    next_color[0] = 0
-                    next_color[1] += 1
-                if next_color[1] == 255:
-                    next_color[1] = 0
-                    next_color[2] += 1
+    # Flood fill: para cada célula (área preta, delimitada por
+    # arestas brancas), dá uma cor BGR (label) diferente:
+    # começa com (0, 0, 0) e vai até (255, 0, 0)
+    # então vai para (0, 1, 0) indo até (255, 1, 0)
+    # e assim sucessivamente até (255, 255, 0)
+    # ou seja, 256*256 cores, possibilitando até 65536 pontos diferentes
+    colors = [0, 0, 0]
+    for y in range(height):
+        for x in range(width):
+            color = tuple(diag[y][x])
+            if color == black:
+                colors[0] += 1
+                cv2.floodFill(diag, None, (x, y), tuple(colors))
+                if colors[0] == 255:
+                    colors[0] = -1
+                    colors[1] += 1
 
     # Dict de cells, onde cada célula (identificada pelo label),
     # tem uma lista de pontos que pertencem a ela e a cor desse
     # pixel na imagem original.
     cells = defaultdict(list)
-    for y in range(altura):
-        for x in range(largura):
+    for y in range(height):
+        for x in range(width):
             if tuple(diag[y][x]) != white:
                 cells[tuple(diag[y][x])].append(Point(x, y, tuple(image[y][x])))
 
     # para cada célula, vê a cor que mais aparece na imagem original
-    out = np.zeros((altura, largura, 3), np.uint8)
+    out = np.zeros((height, width, 3), np.uint8)
     best = defaultdict(tuple)
     for key, value in cells.items():
         colors = defaultdict(int)
@@ -224,8 +220,8 @@ def bowyer_watson(image, altura, largura, points):
         best[key] = max(colors, key=colors.get)
 
     #preenche a imagem final com as cores selecionadas
-    for y in range(altura):
-        for x in range(largura):
+    for y in range(height):
+        for x in range(width):
             if tuple(diag[y][x]) != white:
                 out[y][x] = best[tuple(diag[y][x])]
             else:
@@ -236,23 +232,23 @@ def bowyer_watson(image, altura, largura, points):
     #   Cria um efeito de gradiente nas arestas. Se uma aresta
     #   é azul claro e outra azul escuro, a parte onde elas se
     #   encostam fica azul médio
-    #out = cv2.blur(img,(5,5))
+    #out = cv2.blur(out,(5,5))
     # OPCAO 2: filtro mínimo (aka. erosão)
     #   Como os pixels da linha são brancos, pegar o mínimo sempre
     #   vai pegar o valor de alguma célula vizinha
     out = cv2.erode(out, np.ones((5,5),np.uint8), iterations = 1)
-    return out
+    return out, voronoi
 
 #####################################################################
 ### Bruteforce, lento pra caramba
 #####################################################################
 
-def bruteforce(img, altura, largura, points):
+def bruteforce(img, height, width, points):
     # para cada pixel, calcula a distância até todos os pontos, e
     # fica com a cor do que for mais perto
-    out = np.zeros((altura, largura, canais), np.uint8)
-    for y in range(0, altura):
-        for x in range(0, largura):
+    out = np.zeros((height, width, channels), np.uint8)
+    for y in range(0, height):
+        for x in range(0, width):
             min_dist = 10000000
             for point in points:
                 dist = sqrt( (x-point.x)**2 + (y-point.y)**2 )
@@ -269,9 +265,9 @@ def showImg(img):
     cv2.imshow('image', img)
     cv2.waitKey(0)
 
-def salvaImagem(img, nome_arq):
+def saveImage(img, name):
     #img = cv2.convertScaleAbs(img, alpha=(255.0))
-    cv2.imwrite(nome_arq, img)
+    cv2.imwrite(name, img)
 
 def main():
     if len(sys.argv) != 3:
@@ -285,18 +281,30 @@ def main():
     NUM_POINTS = int(sys.argv[2])
 
     image = cv2.imread(image_name, 1)
-    altura = image.shape[0]
-    largura = image.shape[1]
-    canais = 3
+    height = image.shape[0]
+    width = image.shape[1]
+    channels = 3
 
-    #points = points_gen.random_points(image, NUM_POINTS)
-    points = points_gen.random_plus_edges(image, NUM_POINTS)
+    points = points_gen.random_points(image, NUM_POINTS)
+    #points = points_gen.random_plus_edges(image, NUM_POINTS)
 
-    #out = brute_force(image, altura, largura, points)
-    out = bowyer_watson(image, altura, largura, points)
+    #out = brute_force(image, height, width, points)
+    out, voronoi = bowyer_watson(image, height, width, points)
 
-    image_name = image_name.split('.')[0] #tira a extensão
-    salvaImagem(out, image_name + '-voronoi.bmp')
+    for point in points:
+        x = point.x
+        y = point.y
+        cv2.circle(voronoi, (x,y), 1, (0,255,0), -1)
+
+    showImg(voronoi)
+    saveImage(voronoi, 'voronoi.png')
+    showImg(out)
+
+    # Tira a extensão
+    image_name = image_name.split('.')[0]
+    if "/" in image_name:
+        image_name = image_name.split('/')[1]
+    saveImage(out, image_name + '-voronoi.png')
 
 if __name__ == "__main__":
     main()
