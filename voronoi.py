@@ -69,14 +69,18 @@ class Triangle(object):
 
     # Calcula o circuncentro (retorna as coordenadas x,y e o raio)
     # Retirado de: http://www.ics.uci.edu/~eppstein/junkyard/circumcenter.html (segundo comentário)
-    # Pode dar problema (pontos colineares que resultam em d = 0) mas é raro
+    # Pode dar problema (pontos colineares que resultam em d = 0)
+    # mas é bem raro usando pontos random
     def circumcenter(self):
         p1 = self.p1
         p2 = self.p2
         p3 = self.p3
         d = (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y)
+
         if d == 0:
             print("Erro, pontos colineares")
+            d = 1
+
         cx = (((p1.x - p3.x) * (p1.x + p3.x) + (p1.y - p3.y) * (p1.y + p3.y)) / 2 * (p2.y - p3.y) \
         -((p2.x - p3.x) * (p2.x + p3.x) + (p2.y - p3.y) * (p2.y + p3.y)) / 2 * (p1.y - p3.y)) \
         / d

@@ -59,10 +59,6 @@ def random_plus_edges(img, n):
     for i in range(0, n_from_random):
         x = randint(0, largura-1)
         y = randint(0, altura-1)
-        while unique[(x,y)] == 1:
-            x = randint(0, largura-1)
-            y = randint(0, altura-1)
-        unique[(x,y)] = 1
         points.append(Point(x, y))
 
     return points
