@@ -17,8 +17,8 @@ class Point(object):
     def __str__(self):
         return "Point(%s, %s)"%(self.x,self.y)
 
-    def __lt__(self, other):
-        return self.y < other.y
+#    def __lt__(self, other):
+#        return self.y < other.y
 
     # Euclidean distance
     def dist(self, p):
@@ -39,14 +39,22 @@ class Edge(object):
     def __str__(self):
         return "Edge(%s, %s)"%(self.p1,self.p2)
 
-    # Verifica se nenhum outro triangulo tem essa aresta
+    def is_equal(self, other):
+        # Lembrando que AB = BA, temos que testar os dois casos
+        # para ver se uma aresta é igual a outra
+        if (self.p1 == other.p1 and self.p2 == other.p2) or (self.p1 == other.p2 and self.p2 == other.p1):
+            return True
+        return False
+
+    # Verifica se nenhum outro triângulo tem essa aresta
     def is_unique(self, triangles):
         count = 0
         for triangle in triangles:
             for edge in triangle:
-                # Lembrando que AB = BA, a outra aresta pode ter os pontos invertidos
-                if (edge.p1 == self.p1 and edge.p2 == self.p2) or (edge.p1 == self.p2 and edge.p2 == self.p1):
+                if self.is_equal(edge):
+                    # Quando for igual, conta 1
                     count += 1
+                    # Se encontrou 2 vezes pode parar, não é única
                     if count == 2:
                         return False
         return True
@@ -102,16 +110,15 @@ class Triangle(object):
         return len(s) != 6
 
     # Procura os vizinhos de cada triangulo
-    # Para cada aresta do triangulo, olha os outros
-    # triângulos da triangulação procurando por uma aresta igual
     def find_neighboors(self, triangulation):
+        # Para cada aresta do triângulo, procura por uma igual nos
+        # outros triãngulos da triangulação
         for edge in self.edges:
             shared = False
             for triangle in triangulation:
                 if triangle is not self:
                     for e in triangle:
-                        # Lembrando que AB = BA, o outro triângulo pode ter os pontos invertidos
-                        if (edge.p1 == e.p1 and edge.p2 == e.p2) or (edge.p1 == e.p2 and edge.p2 == e.p1):
+                        if e.is_equal(edge):
                             self.neighboors.append(triangle)
                             # se achou o vizinho daquele lado, vai para o próximo
                             shared = True
@@ -119,13 +126,15 @@ class Triangle(object):
                 if shared:
                     break
 
-
 #####################################################################
 ### Bowyer Watson, vai inserindo um ponto de cada vez
 ### https://en.wikipedia.org/wiki/Bowyer%E2%80%93Watson_algorithm
 #####################################################################
 
-def bowyer_watson(image, height, width, points):
+def bowyer_watson(image, points):
+    height = image.shape[0]
+    width = image.shape[1]
+
     # Pontos que criam um "super-triangulo" que contem o plano inteiro
     sp1 = Point(-math.ceil(width*1.5), -1) # a esquerda, encima
     sp2 = Point(math.ceil(width*2.5), -1) # a direita, encima
@@ -158,51 +167,55 @@ def bowyer_watson(image, height, width, points):
             new_tri = Triangle(edge.p1, edge.p2, point)
             triangulation.append(new_tri)
 
-    # Nao precisa disso pro voronoi:
-    # Remove os triangulos que contem vertices do super triangulo
-    # Resultado é a triangulação de delaunay
-    #result = [tri for tri in triangulation if not tri.contains_super(super_tri)]
-    #for triangle in result:
-        #for edge in triangle:
-            #p1 = (edge.p1.x, edge.p1.y)
-            #p2 = (edge.p2.x, edge.p2.y)
-            #cv2.line(img, p1, p2, white, 1)
+    ### Nao precisa disso pro voronoi, mas é interessante deixar
+    ### a imagem da triangulação para mostrar como funciona
+    # Remove os triangulos que contem vertices do super triangulo.
+    # O resultado é a triangulação de delaunay
+    delaunay_triangles = [tri for tri in triangulation if not tri.contains_super(super_tri)]
+    delaunay = np.zeros((height, width, 1), np.uint8)
+    for triangle in delaunay_triangles:
+        for edge in triangle:
+            p1 = (edge.p1.x, edge.p1.y)
+            p2 = (edge.p2.x, edge.p2.y)
+            cv2.line(delaunay, p1, p2, white, 1)
+    #showImg(delaunay)
 
-    print("Verificando vizinhos...")
+    print("Gerando o diagrama de Voronoi...")
     # Acha os vizinhos de cada triangulo
     for triangle in triangulation:
         triangle.find_neighboors(triangulation)
 
-    print("Gerando o diagrama de Voronoi...")
     # Liga os circuncentros dos triângulos vizinhos,
     # gerando o diagrama de voronoi
-    diag = np.zeros((height, width, 3), np.uint8)
+    voronoi = np.zeros((height, width, 3), np.uint8)
     for triangle in triangulation:
         for neighboor in triangle.neighboors:
             c1 = (math.floor(triangle.cx), math.floor(triangle.cy))
             c2 = (math.floor(neighboor.cx), math.floor(neighboor.cy))
-            cv2.line(diag, c1, c2, white, 1)
-    #showImg(diag)
-    #saveImage(diag, 'voronoi.png')
-    voronoi = diag.copy()
-    out = diag.copy()
+            cv2.line(voronoi, c1, c2, white, 1)
+    #showImg(voronoi)
 
+    print("Colorindo células na imagem final...")
+    voronoi_labels = voronoi.copy()
     # Flood fill: para cada célula (área preta, delimitada por
     # arestas brancas), dá uma cor BGR (label) diferente:
-    # começa com (0, 0, 0) e vai até (255, 0, 0)
-    # então vai para (0, 1, 0) indo até (255, 1, 0)
-    # e assim sucessivamente até (255, 255, 0)
-    # ou seja, 256*256 cores, possibilitando até 65536 pontos diferentes
-    colors = [0, 0, 0]
+    #   Começa com (1, 0, 0) e vai até (255, 0, 0),
+    #   então vai para (0, 1, 0) indo até (255, 1, 0)
+    #   e assim sucessivamente até (255, 255, 0).
+    # No total são (256*256)-1 = 65535 cores de células diferentes.
+    # (o -1 é porque (0,0,0) não conta, ele significa célula não-preenchida)
+    next_color = [1, 0, 0]
     for y in range(height):
         for x in range(width):
-            color = tuple(diag[y][x])
+            color = tuple(voronoi_labels[y][x])
             if color == black:
-                colors[0] += 1
-                cv2.floodFill(diag, None, (x, y), tuple(colors))
-                if colors[0] == 255:
-                    colors[0] = -1
-                    colors[1] += 1
+                # Se achou uma célula não preenchida (preta),
+                # inunda com a próxima cor/label
+                cv2.floodFill(voronoi_labels, None, (x, y), tuple(next_color))
+                next_color[0] += 1
+                if next_color[0] == 255:
+                    next_color[0] = -1
+                    next_color[1] += 1
 
     # Dict de cells, onde cada célula (identificada pelo label),
     # tem uma lista de pontos que pertencem a ela e a cor desse
@@ -210,11 +223,10 @@ def bowyer_watson(image, height, width, points):
     cells = defaultdict(list)
     for y in range(height):
         for x in range(width):
-            if tuple(diag[y][x]) != white:
-                cells[tuple(diag[y][x])].append(Point(x, y, tuple(image[y][x])))
+            if tuple(voronoi_labels[y][x]) != white:
+                cells[tuple(voronoi_labels[y][x])].append(Point(x, y, tuple(image[y][x])))
 
     # para cada célula, vê a cor que mais aparece na imagem original
-    out = np.zeros((height, width, 3), np.uint8)
     best = defaultdict(tuple)
     for key, value in cells.items():
         colors = defaultdict(int)
@@ -224,10 +236,11 @@ def bowyer_watson(image, height, width, points):
         best[key] = max(colors, key=colors.get)
 
     #preenche a imagem final com as cores selecionadas
+    out = np.zeros((height, width, 3), np.uint8)
     for y in range(height):
         for x in range(width):
-            if tuple(diag[y][x]) != white:
-                out[y][x] = best[tuple(diag[y][x])]
+            if tuple(voronoi_labels[y][x]) != white:
+                out[y][x] = best[tuple(voronoi_labels[y][x])]
             else:
                 out[y][x] = white
 
@@ -241,13 +254,17 @@ def bowyer_watson(image, height, width, points):
     #   Como os pixels da linha são brancos, pegar o mínimo sempre
     #   vai pegar o valor de alguma célula vizinha
     out = cv2.erode(out, np.ones((5,5),np.uint8), iterations = 1)
-    return out, voronoi
+    return out, delaunay, voronoi
 
 #####################################################################
 ### Bruteforce, lento pra caramba
 #####################################################################
 
-def bruteforce(img, height, width, points):
+def bruteforce(img, points):
+    height = image.shape[0]
+    width = image.shape[1]
+    channels = image.shape[2]
+
     # para cada pixel, calcula a distância até todos os pontos, e
     # fica com a cor do que for mais perto
     out = np.zeros((height, width, channels), np.uint8)
@@ -269,15 +286,15 @@ def showImg(img):
     cv2.imshow('image', img)
     cv2.waitKey(0)
 
-def saveImage(img, name):
+def saveImg(img, name):
     #img = cv2.convertScaleAbs(img, alpha=(255.0))
     cv2.imwrite(name, img)
 
 def main():
     if len(sys.argv) != 3:
-        print("Melhor assim, não tem que ficar mudando parâmetros no código:")
-        print("\n\tpython voronoi.py image_name N\n")
-        print("image_name é o nome da imagem e N o numero de pontos")
+        print("\nMelhor assim, não tem que ficar mudando parâmetros no código:")
+        print("\tpython voronoi.py image_name N")
+        print("image_name é o nome da imagem e N o numero de pontos\n")
         exit()
 
     # sys.argv[0] é o arquivo .py
@@ -287,28 +304,35 @@ def main():
     image = cv2.imread(image_name, 1)
     height = image.shape[0]
     width = image.shape[1]
-    channels = 3
+
+    # Separa nome do arquivo e extensão para salvar as
+    # imagens de saída (delaunay, voronoi) com o mesmo nome
+    if "/" in image_name:
+        image_name = image_name.split('/')[-1]
+    image_name, extension = image_name.split('.')
 
     points = points_gen.random_points(image, NUM_POINTS)
+    #Não use random_plus_edges() por enquanto
     #points = points_gen.random_plus_edges(image, NUM_POINTS)
 
-    #out = brute_force(image, height, width, points)
-    out, voronoi = bowyer_watson(image, height, width, points)
+    #se quiser salvar ou mostrar uma imagem com os pontos
+    points_img = np.zeros((height, width, 1), np.uint8)
+    for point in points:
+        points_img[point.y][point.x] = 255
+    saveImg(points_img, image_name + '-points.' + extension)
+    #showImg(points_img)
 
+    #out = brute_force(image, points)
+    out, delaunay, voronoi = bowyer_watson(image, points)
+
+    saveImg(delaunay, image_name + '-delaunay.' + extension)
     for point in points:
         x = point.x
         y = point.y
         cv2.circle(voronoi, (x,y), 1, (0,255,0), -1)
-
-    showImg(voronoi)
-    saveImage(voronoi, 'voronoi.png')
-    showImg(out)
-
-    # Tira a extensão
-    image_name = image_name.split('.')[0]
-    if "/" in image_name:
-        image_name = image_name.split('/')[1]
-    saveImage(out, image_name + '-voronoi.png')
+    #showImg(voronoi)
+    saveImg(voronoi, image_name + '-voronoi.' + extension)
+    saveImg(out, image_name + '-out.' + extension)
 
 if __name__ == "__main__":
     main()

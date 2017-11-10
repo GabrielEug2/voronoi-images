@@ -1,64 +1,36 @@
 import cv2
 import numpy as np
 import random
+import sys
 from random import randint
 from voronoi import Point
 from collections import defaultdict
 
+# Gera N pontos aleatórios, retorna um vetor
+# com as coordenadas (x,y) de cada ponto
 def random_points(img, n):
     altura = img.shape[0]
     largura = img.shape[1]
 
-    #points_img = np.zeros((altura, largura, 1), np.uint8)
     points = []
-    unique = defaultdict(int)
+    already_chosen = defaultdict(int) #começa com tudo setado em 0
 
     #Gera N pontos aleatórios
     for i in range(0, n):
         x = randint(0, largura-1)
         y = randint(0, altura-1)
-        # garante que nenhum ponto vai ser igual
-        while unique[(x,y)] == 1:
+        # garante que nenhum ponto vai ser igual: se cair
+        # em um já escolhido, gera outro até ser único
+        while already_chosen[(x,y)] == 1:
             x = randint(0, largura-1)
             y = randint(0, altura-1)
-        unique[(x,y)] = 1
+        already_chosen[(x,y)] = 1
         points.append(Point(x, y))
-        #points_img[y, x] = 255
 
-    #cv2.imshow('image', points_img)
-    #cv2.waitKey(0)
     return points
 
 def random_plus_edges(img, n):
-    altura = img.shape[0]
-    largura = img.shape[1]
-
-    # Detecta as bordas
-    edges = cv2.Canny(img, 50, 200)
-    #cv2.imshow('image', edges)
-    #cv2.waitKey(0)
-
-    # Salva os pixels brancos como possíveis sementes/pontos
-    edges_coord = []
-    for y in range(altura):
-        for x in range(largura):
-            if edges[y,x] == 255:
-                edges_coord.append(Point(x, y))
-    # Embaralha
-    random.shuffle(edges_coord)
-
-    # Seleciona uma porcentagem dos pixels das bordas,
-    # e o restante aleatorios
-    points = []
-    n_from_edges = int(n*0.3)
-    n_from_random = n - n_from_edges
-    for i in range(0, n_from_edges):
-        selected = edges_coord.pop()
-        points.append(selected)
-
-    for i in range(0, n_from_random):
-        x = randint(0, largura-1)
-        y = randint(0, altura-1)
-        points.append(Point(x, y))
-
-    return points
+    sys.exit("Use pontos aleatórios, desse jeito (usando bordas) é mais lento e não melhora nada")
+    ### TODO: Tentar dividir em várias áreas (3 ou 4) de pixels com
+    ### chance diferente de serem escolhidos. Quanto mais perto da borda, maior a
+    ### chance de tirar de lá. Como colocar "pesos" na hora de escolher um random?

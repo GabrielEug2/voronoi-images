@@ -4,6 +4,7 @@
 Implementação do Algoritmo de Bowyer-Watson
 
 TODO:
-* Refatorar o código
+* Otimizar a busca por vizinhos
+* Otimizar a identificação da cor mais comum das células
 * Melhorar o algoritmo (implementar o fortune?)
-* Tirar as linhas brancas, como? (ou não tirar)
+* Refatorar o código
