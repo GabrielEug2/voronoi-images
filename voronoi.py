@@ -311,28 +311,27 @@ def main():
         image_name = image_name.split('/')[-1]
     image_name, extension = image_name.split('.')
 
-    points = points_gen.random_points(image, NUM_POINTS)
-    #Não use random_plus_edges() por enquanto
-    #points = points_gen.random_plus_edges(image, NUM_POINTS)
+    #points = points_gen.random_points(image, NUM_POINTS)
+    points = points_gen.random_plus_edges(image, NUM_POINTS)
 
     #se quiser salvar ou mostrar uma imagem com os pontos
     points_img = np.zeros((height, width, 1), np.uint8)
     for point in points:
         points_img[point.y][point.x] = 255
-    saveImg(points_img, image_name + '-points.' + extension)
+    saveImg(points_img, image_name + '-1points.' + extension)
     #showImg(points_img)
 
     #out = brute_force(image, points)
     out, delaunay, voronoi = bowyer_watson(image, points)
 
-    saveImg(delaunay, image_name + '-delaunay.' + extension)
+    saveImg(delaunay, image_name + '-2delaunay.' + extension)
     for point in points:
         x = point.x
         y = point.y
         cv2.circle(voronoi, (x,y), 1, (0,255,0), -1)
     #showImg(voronoi)
-    saveImg(voronoi, image_name + '-voronoi.' + extension)
-    saveImg(out, image_name + '-out.' + extension)
+    saveImg(voronoi, image_name + '-3voronoi.' + extension)
+    saveImg(out, image_name + '-4out.' + extension)
 
 if __name__ == "__main__":
     main()

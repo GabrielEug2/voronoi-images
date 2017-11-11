@@ -1,8 +1,7 @@
 import cv2
 import numpy as np
-import random
-import sys
 from random import randint
+from random import choice
 from voronoi import Point
 from collections import defaultdict
 
@@ -30,7 +29,41 @@ def random_points(img, n):
     return points
 
 def random_plus_edges(img, n):
-    sys.exit("Use pontos aleatórios, desse jeito (usando bordas) é mais lento e não melhora nada")
-    ### TODO: Tentar dividir em várias áreas (3 ou 4) de pixels com
-    ### chance diferente de serem escolhidos. Quanto mais perto da borda, maior a
-    ### chance de tirar de lá. Como colocar "pesos" na hora de escolher um random?
+    altura = img.shape[0]
+    largura = img.shape[1]
+
+    # Detecta e dilata as bordas
+    edges = cv2.Canny(img, 50, 200)
+    cv2.imshow('image', edges)
+    cv2.waitKey(0)
+    kernel = np.ones((21,21),np.uint8)
+    close_to_edges = cv2.dilate(edges, kernel, iterations = 1)
+    cv2.imshow('image', close_to_edges)
+    cv2.waitKey(0)
+
+    # Adiciona todos os candidatos a pontos em um vetor.
+    # Se o pixel está perto de alguma borda, ele é inserido
+    # mais de uma vez
+    candidates = []
+    for y in range(0, altura):
+        for x in range(0, largura):
+            if close_to_edges[y][x] == 255:
+                candidates.append(Point(x, y))
+                candidates.append(Point(x, y))
+            else: #se estiver longe
+                candidates.append(Point(x, y))
+
+    # Seleciona N pontos aleatórios
+    points = []
+    already_chosen = defaultdict(int) #começa com tudo setado em 0
+
+    for i in range(0, n):
+        selected = choice(candidates)
+        # garante que nenhum ponto vai ser igual: se cair
+        # em um já escolhido, seleciona outro até ser único
+        while already_chosen[selected] == 1:
+            selected = choice(candidates)
+        already_chosen[selected] = 1
+        points.append(selected)
+
+    return points
