@@ -322,7 +322,7 @@ def main():
     for point in points:
         points_img[point.y][point.x] = 255
     saveImg(points_img, image_name + '-1points.' + extension)
-    #showImg(points_img)
+    showImg(points_img)
 
     #out = brute_force(image, points)
     out, delaunay, voronoi = bowyer_watson(image, points)
