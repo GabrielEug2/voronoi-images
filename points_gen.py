@@ -34,37 +34,19 @@ def weighted_random(img, n):
     altura = img.shape[0]
     largura = img.shape[1]
 
-    # Detecta as bordas
-    edges = cv2.Canny(img, 50, 200)
-    #cv2.imshow('image', edges)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Imagem - imagem borrada = detalhes
+    blur = cv2.GaussianBlur(gray, (71,71), 0)
+    details = cv2.subtract(gray, blur)
+
+    # Filtro máximo para "vazar" os detalhes
+    details = cv2.dilate(details, np.ones((7, 7), np.uint8), iterations = 1)
+
+    # Normalize para 0..1
+    details = cv2.normalize(details.astype('float32'), None, 0.0, 1.0, cv2.NORM_MINMAX)
+    #cv2.imshow('image', details)
     #cv2.waitKey(0)
-
-    # Dilata usando kernels diferentes
-    kernel_small = np.ones((25,25), np.uint8)
-    really_close_to_edges = cv2.dilate(edges, kernel_small, iterations = 1)
-
-    kernel_big = np.ones((51,51),np.uint8)
-    close_to_edges = cv2.dilate(edges, kernel_big, iterations = 1)
-
-    # O que estiver muito perto da borda é desconsiderado,
-    # diminuindo o número de "pontas" nas fronteiras das
-    # células do Voronoi
-    kernel_too_small = np.ones((5,5), np.uint8)
-    edges = cv2.dilate(edges, kernel_too_small, iterations = 1)
-    really_close_to_edges = cv2.subtract(really_close_to_edges, edges)
-    close_to_edges = cv2.subtract(close_to_edges, edges)
-
-    # Para melhor preservar as fronteiras dos objetos no Voronoi,
-    # é melhor que muitos pixels perto da borda sejam escolhidos.
-
-    # Para garantir isso, somamos as imagens dilatadas, criando
-    # uma espécie de mapa.
-    #   bem perto das bordas = 2
-    #   meio perto das bordas = 1
-    #   longe das bordas = 0
-    really_close_to_edges = cv2.normalize(really_close_to_edges.astype('float32'), None, 0.0, 1.0, cv2.NORM_MINMAX)
-    close_to_edges = cv2.normalize(close_to_edges.astype('float32'), None, 0.0, 1.0, cv2.NORM_MINMAX)
-    odds_map = cv2.add(close_to_edges, really_close_to_edges)
 
     # Adiciona todos os candidatos a pontos em um vetor. Quanto mais claro
     # o pixel for no mapa, maior as chances de ser escolhido
@@ -75,18 +57,9 @@ def weighted_random(img, n):
     for y in range(0, altura):
         for x in range(0, largura):
             point = Point(x,y)
-            if odds_map[y][x] == 2:
-                for i in range(0, 10):
-                    candidates.append(point)
-            if odds_map[y][x] == 1:
-                for i in range(0, 5):
-                    candidates.append(point)
-            else: #se estiver longe
+            chances = int(details[y][x] * 10)
+            for i in (0, chances):
                 candidates.append(point)
-    odds_map = cv2.normalize(odds_map.astype('float32'), None, 0.0, 1.0, cv2.NORM_MINMAX)
-    odds_map = cv2.convertScaleAbs(odds_map, alpha=(255.0))
-    cv2.imshow('image', odds_map)
-    cv2.waitKey(0)
 
     # Seleciona N pontos aleatórios do vetor
     points = []

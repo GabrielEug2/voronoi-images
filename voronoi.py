@@ -178,7 +178,7 @@ def bowyer_watson(image, points):
             p1 = (edge.p1.x, edge.p1.y)
             p2 = (edge.p2.x, edge.p2.y)
             cv2.line(delaunay, p1, p2, white, 1)
-    showImg(delaunay)
+    #showImg(delaunay)
 
     print("Gerando o diagrama de Voronoi...")
     # Acha os vizinhos de cada triangulo
@@ -193,8 +193,7 @@ def bowyer_watson(image, points):
             c1 = (math.floor(triangle.cx), math.floor(triangle.cy))
             c2 = (math.floor(neighboor.cx), math.floor(neighboor.cy))
             cv2.line(voronoi, c1, c2, white, 1)
-    showImg(voronoi)
-    sys.exit()
+    #showImg(voronoi)
 
     print("Colorindo células na imagem final...")
     voronoi_labels = voronoi.copy()
@@ -323,7 +322,7 @@ def main():
     for point in points:
         points_img[point.y][point.x] = 255
     saveImg(points_img, image_name + '-1points.' + extension)
-    showImg(points_img)
+    #showImg(points_img)
 
     #out = brute_force(image, points)
     out, delaunay, voronoi = bowyer_watson(image, points)
