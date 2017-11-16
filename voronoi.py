@@ -3,6 +3,7 @@ import numpy as np
 import points_gen
 import sys #pra pegar o N e o nome do arquivo por argumento
 import math
+import time
 from collections import defaultdict
 
 black = (0, 0, 0)
@@ -193,10 +194,8 @@ def bowyer_watson(image, points):
             c1 = (math.floor(triangle.cx), math.floor(triangle.cy))
             c2 = (math.floor(neighboor.cx), math.floor(neighboor.cy))
             cv2.line(voronoi, c1, c2, white, 1)
-    #showImg(voronoi)
 
     print("Colorindo células na imagem final...")
-    voronoi_labels = voronoi.copy()
     # Flood fill: para cada célula (área preta, delimitada por
     # arestas brancas), dá uma cor BGR (label) diferente:
     #   Começa com (1, 0, 0) e vai até (255, 0, 0),
@@ -205,6 +204,7 @@ def bowyer_watson(image, points):
     # No total são (256*256)-1 = 65535 cores de células diferentes.
     # (o -1 é porque (0,0,0) não conta, ele significa célula não-preenchida)
     next_color = [1, 0, 0]
+    voronoi_labels = voronoi.copy()
     for y in range(height):
         for x in range(width):
             color = tuple(voronoi_labels[y][x])
@@ -216,15 +216,25 @@ def bowyer_watson(image, points):
                 if next_color[0] == 255:
                     next_color[0] = -1
                     next_color[1] += 1
-
+    
     # Dict de cells, onde cada célula (identificada pelo label),
     # tem uma lista de pontos que pertencem a ela e a cor desse
     # pixel na imagem original.
+    # blurred = cv2.GaussianBlur(image,(7,7),0)
+    '''
+    cells = defaultdict(list)
+    mask = voronoi_labels != white
+    for y,col in enumerate(mask):
+        for x,row in enumerate(col):
+            cells[tuple(voronoi_labels[y][x])].append(Point(x, y, tuple(blurred[y][x])))
+    '''
+    
     cells = defaultdict(list)
     for y in range(height):
         for x in range(width):
             if tuple(voronoi_labels[y][x]) != white:
                 cells[tuple(voronoi_labels[y][x])].append(Point(x, y, tuple(image[y][x])))
+    
 
     # para cada célula, vê a cor que mais aparece na imagem original
     best = defaultdict(tuple)
@@ -236,6 +246,18 @@ def bowyer_watson(image, points):
         best[key] = max(colors, key=colors.get)
 
     #preenche a imagem final com as cores selecionadas
+    out = voronoi.copy()
+    for key, points in cells.items():
+        if key != white:
+            x = points[0].x
+            y = points[0].y
+            color = best[key]
+            b = int(color[0])
+            g = int(color[1])
+            r = int(color[2])
+            cv2.floodFill(out, None, (x, y), (b, g, r))
+    
+    '''
     out = np.zeros((height, width, 3), np.uint8)
     for y in range(height):
         for x in range(width):
@@ -243,6 +265,7 @@ def bowyer_watson(image, points):
                 out[y][x] = best[tuple(voronoi_labels[y][x])]
             else:
                 out[y][x] = white
+    '''
 
     # Tira as linhas brancas
     # OPCAO 1: borrar
@@ -311,30 +334,37 @@ def main():
         image_name = image_name.split('/')[-1]
     image_name, extension = image_name.split('.')
 
-    # Bora para tirar ruído
+    # Borra para tirar ruído
     image = cv2.GaussianBlur(image,(7,7),0)
 
-    #points = points_gen.random_points(image, NUM_POINTS)
-    points = points_gen.weighted_random(image, NUM_POINTS)
-
+    points = points_gen.random_points(image, NUM_POINTS)
+    #points = points_gen.weighted_random(image, NUM_POINTS)
+    
     #se quiser salvar ou mostrar uma imagem com os pontos
+    '''
     points_img = np.zeros((height, width, 1), np.uint8)
     for point in points:
         points_img[point.y][point.x] = 255
-    saveImg(points_img, image_name + '-1points.' + extension)
-    showImg(points_img)
-
+    '''
     #out = brute_force(image, points)
+    start_time = time.time()
     out, delaunay, voronoi = bowyer_watson(image, points)
-
-    saveImg(delaunay, image_name + '-2delaunay.' + extension)
+    print("--- %s seconds ---" % (time.time() - start_time))
+    
     for point in points:
         x = point.x
         y = point.y
         cv2.circle(voronoi, (x,y), 1, (0,255,0), -1)
+    
+    #showImg(points_img)
     #showImg(voronoi)
+    showImg(out)
+    '''
+    saveImg(points_img, image_name + '-1points.' + extension)
+    saveImg(delaunay, image_name + '-2delaunay.' + extension)
     saveImg(voronoi, image_name + '-3voronoi.' + extension)
     saveImg(out, image_name + '-4out.' + extension)
+    '''
 
 if __name__ == "__main__":
     main()

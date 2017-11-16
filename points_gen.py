@@ -15,7 +15,7 @@ def random_points(img, n):
     already_chosen = defaultdict(int) #começa com tudo setado em 0
 
     #Gera N pontos aleatórios
-    for i in range(0, n):
+    for i in range(n):
         x = randint(0, largura-1)
         y = randint(0, altura-1)
         # garante que nenhum ponto vai ser igual: se cair
@@ -47,16 +47,16 @@ def weighted_random(img, n):
 
     # Normaliza para 0..255
     details = cv2.normalize(details, None, 0, 255, cv2.NORM_MINMAX)
-    cv2.imshow('image', details)
-    cv2.waitKey(0)
+    #cv2.imshow('image', details)
+    #cv2.waitKey(0)
 
     # Adiciona os candidatos a ponto em 2 vetores:
     # Detalhes acima de um treshold são bons candidatos,
     # o resto são candidatos ok
     good_candidates = []
     ok_candidates = []
-    for y in range(0, altura):
-        for x in range(0, largura):
+    for y in range(altura):
+        for x in range(largura):
             point = Point(x,y)
             if details[y][x] > 75:
                 good_candidates.append(point)
@@ -68,7 +68,7 @@ def weighted_random(img, n):
     already_chosen = defaultdict(int) #começa com tudo setado em 0
 
     # A maior parte será dos detalhes
-    for i in range(0, int(n*0.7)):
+    for i in range(int(n*0.7)):
         selected = choice(good_candidates)
         # garante que nenhum ponto vai ser igual: se cair
         # em um já escolhido, seleciona outro até ser único
@@ -78,7 +78,7 @@ def weighted_random(img, n):
         points.append(selected)
 
     # O resto é do fundo
-    for i in range(0, int(n*0.3)):
+    for i in range(int(n*0.3)):
         selected = choice(ok_candidates)
         # garante que nenhum ponto vai ser igual: se cair
         # em um já escolhido, seleciona outro até ser único
