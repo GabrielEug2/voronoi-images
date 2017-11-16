@@ -112,8 +112,8 @@ class Triangle(object):
 
     # Procura os vizinhos de cada triangulo
     def find_neighboors(self, triangulation):
-        # Para cada aresta do triângulo, procura por uma igual nos
-        # outros triãngulos da triangulação
+        # Para cada aresta do triângulo, procura por uma
+        # igual no resto da triangulação
         for edge in self.edges:
             shared = False
             for triangle in triangulation:
@@ -132,7 +132,7 @@ class Triangle(object):
 ### https://en.wikipedia.org/wiki/Bowyer%E2%80%93Watson_algorithm
 #####################################################################
 
-def bowyer_watson(image, points):
+def bowyer_watson(image, points, NUM_POINTS):
     height = image.shape[0]
     width = image.shape[1]
 
@@ -191,64 +191,51 @@ def bowyer_watson(image, points):
     voronoi = np.zeros((height, width, 3), np.uint8)
     for triangle in triangulation:
         for neighboor in triangle.neighboors:
-            c1 = (math.floor(triangle.cx), math.floor(triangle.cy))
-            c2 = (math.floor(neighboor.cx), math.floor(neighboor.cy))
+            c1 = (math.ceil(triangle.cx), math.ceil(triangle.cy))
+            c2 = (math.ceil(neighboor.cx), math.ceil(neighboor.cy))
             cv2.line(voronoi, c1, c2, white, 1)
 
     print("Colorindo células na imagem final...")
-    # Flood fill: para cada célula (área preta, delimitada por
-    # arestas brancas), dá uma cor BGR (label) diferente:
-    #   Começa com (1, 0, 0) e vai até (255, 0, 0),
-    #   então vai para (0, 1, 0) indo até (255, 1, 0)
-    #   e assim sucessivamente até (255, 255, 0).
-    # No total são (256*256)-1 = 65535 cores de células diferentes.
-    # (o -1 é porque (0,0,0) não conta, ele significa célula não-preenchida)
-    next_color = [1, 0, 0]
-    voronoi_labels = voronoi.copy()
-    for y in range(height):
-        for x in range(width):
-            color = tuple(voronoi_labels[y][x])
-            if color == black:
-                # Se achou uma célula não preenchida (preta),
-                # inunda com a próxima cor/label
-                cv2.floodFill(voronoi_labels, None, (x, y), tuple(next_color))
-                next_color[0] += 1
-                if next_color[0] == 255:
-                    next_color[0] = 0
-                    next_color[1] += 1
+    # Acha as células (componentes conexos)
+    voronoi_labels = cv2.cvtColor(voronoi, cv2.COLOR_BGR2GRAY)
+    voronoi_labels = cv2.bitwise_not(voronoi_labels)
+    _, labels = cv2.connectedComponents(voronoi_labels, None, 4)
+    # Arestas recebem NUM_POINTS * 2
+    labels[voronoi_labels == 0] = NUM_POINTS * 2
     
     # Dict de cells, onde cada célula (identificada pelo label),
     # tem uma lista de pontos que pertencem a ela e a cor desse
     # pixel na imagem original.
-    #blurred = cv2.GaussianBlur(image,(7,7),0)
+    cells = defaultdict(list)
+
+    # Borra a imagem para diminuir a diferença entre as cores
     blurred = cv2.medianBlur(image, 21)
     
-    cells = defaultdict(list)
+    # Adiciona cada ponto a sua respectiva célula no dict
     for y in range(height):
         for x in range(width):
-            if tuple(voronoi_labels[y][x]) != white:
-                cells[tuple(voronoi_labels[y][x])].append(Point(x, y, tuple(blurred[y][x])))
+            if labels[y][x] != NUM_POINTS * 2:
+                cells[labels[y][x]].append(Point(x, y, tuple(blurred[y][x])))
     
     # para cada célula, vê a cor que mais aparece na imagem original
     best = defaultdict(tuple)
-    for key, value in cells.items():
+    for key, points in cells.items():
         colors = defaultdict(int)
         # para isso, cria um histograma só com os pixels daquela célula
-        for point in value:
+        for point in points:
             colors[point.color] += 1
         best[key] = max(colors, key=colors.get)
 
     #preenche a imagem final com as cores selecionadas
     out = voronoi.copy()
     for key, points in cells.items():
-        if key != white:
-            x = points[0].x
-            y = points[0].y
-            color = best[key]
-            b = int(color[0])
-            g = int(color[1])
-            r = int(color[2])
-            cv2.floodFill(out, None, (x, y), (b, g, r))
+        x = points[0].x
+        y = points[0].y
+        color = best[key]
+        b = int(color[0])
+        g = int(color[1])
+        r = int(color[2])
+        cv2.floodFill(out, None, (x, y), (b, g, r))
 
     # Tira as linhas brancas
     # OPCAO 1: borrar
@@ -320,8 +307,8 @@ def main():
     # Borra para tirar ruído
     image = cv2.GaussianBlur(image,(7,7),0)
 
-    points = points_gen.random_points(image, NUM_POINTS)
-    #points = points_gen.weighted_random(image, NUM_POINTS)
+    #points = points_gen.random_points(image, NUM_POINTS)
+    points = points_gen.weighted_random(image, NUM_POINTS)
     
     #se quiser salvar ou mostrar uma imagem com os pontos
     '''
@@ -331,7 +318,7 @@ def main():
     '''
     #out = brute_force(image, points)
     start_time = time.time()
-    out, delaunay, voronoi = bowyer_watson(image, points)
+    out, delaunay, voronoi = bowyer_watson(image, points, NUM_POINTS)
     print("--- %s seconds ---" % (time.time() - start_time))
     
     for point in points:
@@ -342,12 +329,11 @@ def main():
     #showImg(points_img)
     #showImg(voronoi)
     showImg(out)
-    '''
-    saveImg(points_img, image_name + '-1points.' + extension)
-    saveImg(delaunay, image_name + '-2delaunay.' + extension)
-    saveImg(voronoi, image_name + '-3voronoi.' + extension)
-    saveImg(out, image_name + '-4out.' + extension)
-    '''
+    
+    #saveImg(points_img, image_name + '-1points.' + extension)
+    #saveImg(delaunay, image_name + '-2delaunay.' + extension)
+    #saveImg(voronoi, image_name + '-3voronoi.' + extension)
+    #saveImg(out, image_name + '-4out.' + extension)
 
 if __name__ == "__main__":
     main()
