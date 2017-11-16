@@ -214,28 +214,21 @@ def bowyer_watson(image, points):
                 cv2.floodFill(voronoi_labels, None, (x, y), tuple(next_color))
                 next_color[0] += 1
                 if next_color[0] == 255:
-                    next_color[0] = -1
+                    next_color[0] = 0
                     next_color[1] += 1
     
     # Dict de cells, onde cada célula (identificada pelo label),
     # tem uma lista de pontos que pertencem a ela e a cor desse
     # pixel na imagem original.
-    # blurred = cv2.GaussianBlur(image,(7,7),0)
-    '''
-    cells = defaultdict(list)
-    mask = voronoi_labels != white
-    for y,col in enumerate(mask):
-        for x,row in enumerate(col):
-            cells[tuple(voronoi_labels[y][x])].append(Point(x, y, tuple(blurred[y][x])))
-    '''
+    #blurred = cv2.GaussianBlur(image,(7,7),0)
+    blurred = cv2.medianBlur(image, 21)
     
     cells = defaultdict(list)
     for y in range(height):
         for x in range(width):
             if tuple(voronoi_labels[y][x]) != white:
-                cells[tuple(voronoi_labels[y][x])].append(Point(x, y, tuple(image[y][x])))
+                cells[tuple(voronoi_labels[y][x])].append(Point(x, y, tuple(blurred[y][x])))
     
-
     # para cada célula, vê a cor que mais aparece na imagem original
     best = defaultdict(tuple)
     for key, value in cells.items():
@@ -256,16 +249,6 @@ def bowyer_watson(image, points):
             g = int(color[1])
             r = int(color[2])
             cv2.floodFill(out, None, (x, y), (b, g, r))
-    
-    '''
-    out = np.zeros((height, width, 3), np.uint8)
-    for y in range(height):
-        for x in range(width):
-            if tuple(voronoi_labels[y][x]) != white:
-                out[y][x] = best[tuple(voronoi_labels[y][x])]
-            else:
-                out[y][x] = white
-    '''
 
     # Tira as linhas brancas
     # OPCAO 1: borrar
