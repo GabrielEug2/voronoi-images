@@ -18,9 +18,6 @@ class Point(object):
     def __str__(self):
         return "Point(%s, %s)"%(self.x,self.y)
 
-#    def __lt__(self, other):
-#        return self.y < other.y
-
     # Euclidean distance
     def dist(self, p):
         dx = self.x - p.x
@@ -179,7 +176,6 @@ def bowyer_watson(image, points, NUM_POINTS):
             p1 = (edge.p1.x, edge.p1.y)
             p2 = (edge.p2.x, edge.p2.y)
             cv2.line(delaunay, p1, p2, white, 1)
-    #showImg(delaunay)
 
     print("Gerando o diagrama de Voronoi...")
     # Acha os vizinhos de cada triangulo
@@ -202,7 +198,7 @@ def bowyer_watson(image, points, NUM_POINTS):
     _, labels = cv2.connectedComponents(voronoi_labels, None, 4)
     # Arestas recebem NUM_POINTS * 2
     labels[voronoi_labels == 0] = NUM_POINTS * 2
-    
+
     # Dict de cells, onde cada célula (identificada pelo label),
     # tem uma lista de pontos que pertencem a ela e a cor desse
     # pixel na imagem original.
@@ -210,13 +206,13 @@ def bowyer_watson(image, points, NUM_POINTS):
 
     # Borra a imagem para diminuir a diferença entre as cores
     blurred = cv2.medianBlur(image, 21)
-    
+
     # Adiciona cada ponto a sua respectiva célula no dict
     for y in range(height):
         for x in range(width):
             if labels[y][x] != NUM_POINTS * 2:
                 cells[labels[y][x]].append(Point(x, y, tuple(blurred[y][x])))
-    
+
     # para cada célula, vê a cor que mais aparece na imagem original
     best = defaultdict(tuple)
     for key, points in cells.items():
@@ -245,8 +241,11 @@ def bowyer_watson(image, points, NUM_POINTS):
     #out = cv2.blur(out,(5,5))
     # OPCAO 2: filtro mínimo (aka. erosão)
     #   Como os pixels da linha são brancos, pegar o mínimo sempre
-    #   vai pegar o valor de alguma célula vizinha
-    out = cv2.erode(out, np.ones((5,5),np.uint8), iterations = 1)
+    #   vai pegar o valor de alguma célula vizinha. Cria umas bordas
+    #   estranhas, porque está erodindo uma imagem colorida (e não
+    #   sei o que o OpenCV faz nesse caso, só sei que fica ruim)
+    #out = cv2.erode(out, np.ones((5,5),np.uint8), iterations = 1)
+
     return out, delaunay, voronoi
 
 #####################################################################
@@ -309,31 +308,33 @@ def main():
 
     #points = points_gen.random_points(image, NUM_POINTS)
     points = points_gen.weighted_random(image, NUM_POINTS)
-    
+
     #se quiser salvar ou mostrar uma imagem com os pontos
-    '''
+#    '''
     points_img = np.zeros((height, width, 1), np.uint8)
     for point in points:
         points_img[point.y][point.x] = 255
-    '''
-    #out = brute_force(image, points)
+#    '''
+
     start_time = time.time()
+    #out = brute_force(image, points)
     out, delaunay, voronoi = bowyer_watson(image, points, NUM_POINTS)
     print("--- %s seconds ---" % (time.time() - start_time))
-    
+
     for point in points:
         x = point.x
         y = point.y
         cv2.circle(voronoi, (x,y), 1, (0,255,0), -1)
-    
+
     #showImg(points_img)
+    #showImg(delaunay)
     #showImg(voronoi)
-    showImg(out)
-    
-    #saveImg(points_img, image_name + '-1points.' + extension)
-    #saveImg(delaunay, image_name + '-2delaunay.' + extension)
-    #saveImg(voronoi, image_name + '-3voronoi.' + extension)
-    #saveImg(out, image_name + '-4out.' + extension)
+    #showImg(out)
+
+    saveImg(points_img, image_name + '-1points.' + extension)
+    saveImg(delaunay, image_name + '-2delaunay.' + extension)
+    saveImg(voronoi, image_name + '-3voronoi.' + extension)
+    saveImg(out, image_name + '-4out.' + extension)
 
 if __name__ == "__main__":
     main()

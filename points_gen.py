@@ -1,29 +1,37 @@
 import cv2
 import numpy as np
 from random import randint
-from random import choice
 from voronoi import Point
 from collections import defaultdict
+
+# Quando escolher um pixel, já marca os vizinhos como escolhidos,
+# para não escolher 2 pontos um ao lado do outro
+def set_self_and_neighboors_as_chosen(x, y, already_chosen):
+    # +2 porque queremos ir de x-1 até x+1,
+    # e range(A,B) vai de A até B-1
+    for j in range(x-1, x+2):
+        for i in range(x-1, x+2):
+            already_chosen[(j,i)] = 1
 
 # Gera N pontos aleatórios, retorna um vetor
 # com as coordenadas (x,y) de cada ponto
 def random_points(img, n):
-    altura = img.shape[0]
-    largura = img.shape[1]
+    height = img.shape[0]
+    width = img.shape[1]
 
     points = []
     already_chosen = defaultdict(int) #começa com tudo setado em 0
 
     #Gera N pontos aleatórios
     for i in range(n):
-        x = randint(0, largura-1)
-        y = randint(0, altura-1)
-        # garante que nenhum ponto vai ser igual: se cair
-        # em um já escolhido, gera outro até ser único
+        # Escolhe (x,y) aleatório
+        x = randint(0, width-1)
+        y = randint(0, height-1)
+        # Se cair em um já escolhido, gera outro até ser único
         while already_chosen[(x,y)] == 1:
-            x = randint(0, largura-1)
-            y = randint(0, altura-1)
-        already_chosen[(x,y)] = 1
+            x = randint(0, width-1)
+            y = randint(0, height-1)
+        set_self_and_neighboors_as_chosen(x, y, already_chosen)
         points.append(Point(x, y))
 
     return points
@@ -31,60 +39,64 @@ def random_points(img, n):
 # Gera N pontos aleatórios. Se está perto de uma borda, tem uma chance
 # maior de ser escolhido. Retorna um vetor com as coordenadas (x,y) de cada ponto
 def weighted_random(img, n):
-    altura = img.shape[0]
-    largura = img.shape[1]
+    height = img.shape[0]
+    width = img.shape[1]
 
-    # Converte para escala de cinza e borra um pouco para tirar ruído
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    gray = cv2.GaussianBlur(gray, (5,5), 0)
+    # Borra um pouco para tirar ruído
+    img = cv2.GaussianBlur(img, (5,5), 0)
 
-    # Detalhes = imagem - imagem borrada
-    blur = cv2.GaussianBlur(gray, (15,15), 0)
-    details = cv2.subtract(gray, blur)
+    # Detecta as bordas para cada canal separadamente e usando
+    # diferentes limiares para a histerese, une tudo
+    edges = np.zeros((height, width, 1), np.uint8)
+    for channel in cv2.split(img):
+        channel_edges = np.zeros((height, width, 1), np.uint8)
+        higher_t = 255
+        lower_t = higher_t//3
+        for i in range(10):
+            aux = cv2.Canny(channel, lower_t, higher_t)
+            channel_edges = cv2.add(channel_edges, aux)
+            higher_t -= 25
+            lower_t = higher_t//3
+        edges = cv2.add(edges, channel_edges)
 
-    # Filtro máximo para "vazar" os detalhes
-    details = cv2.dilate(details, np.ones((31, 31), np.uint8), iterations = 1)
+    cv2.imshow('image', edges)
+    cv2.waitKey(0)
 
-    # Normaliza para 0..255
-    details = cv2.normalize(details, None, 0, 255, cv2.NORM_MINMAX)
-    #cv2.imshow('image', details)
-    #cv2.waitKey(0)
+    # Dilata as bordas
+    kernel = np.ones((21,21), np.uint8)
+    dilated_edges = cv2.dilate(edges, kernel, iterations = 1)
 
-    # Adiciona os candidatos a ponto em 2 vetores:
-    # Detalhes acima de um treshold são bons candidatos,
-    # o resto são candidatos ok
-    good_candidates = []
-    ok_candidates = []
-    for y in range(altura):
-        for x in range(largura):
-            point = Point(x,y)
-            if details[y][x] > 75:
-                good_candidates.append(point)
-            else:
-                ok_candidates.append(point)
+    # Perto das bordas = bordas dilatadas - bordas
+    close_to_edges = cv2.subtract(dilated_edges, edges)
 
-    # Seleciona N pontos aleatórios do vetor
+    cv2.imshow('image', close_to_edges)
+    cv2.waitKey(0)
+
     points = []
     already_chosen = defaultdict(int) #começa com tudo setado em 0
 
-    # A maior parte será dos detalhes
-    for i in range(int(n*0.7)):
-        selected = choice(good_candidates)
-        # garante que nenhum ponto vai ser igual: se cair
-        # em um já escolhido, seleciona outro até ser único
-        while already_chosen[selected] == 1:
-            selected = choice(good_candidates)
-        already_chosen[selected] = 1
-        points.append(selected)
+    # Enquanto não selecionar N pontos
+    while len(points) != n:
+        # Escolhe (x,y) aleatório para testar
+        x = randint(0, width-1)
+        y = randint(0, height-1)
+        # Se cair em um já escolhido, gera outro até ser único
+        while already_chosen[(x,y)] == 1:
+            x = randint(0, width-1)
+            y = randint(0, height-1)
 
-    # O resto é do fundo
-    for i in range(int(n*0.3)):
-        selected = choice(ok_candidates)
-        # garante que nenhum ponto vai ser igual: se cair
-        # em um já escolhido, seleciona outro até ser único
-        while already_chosen[selected] == 1:
-            selected = choice(ok_candidates)
-        already_chosen[selected] = 1
-        points.append(selected)
+        # Rola um dado
+        value = randint(1, 6)
+
+        # Se estiver perto de alguma borda, tem grandes chances
+        if close_to_edges[y][x] == 255:
+            if value >= 3:
+                set_self_and_neighboors_as_chosen(x, y, already_chosen)
+                points.append(Point(x,y))
+        # Se não estiver perto, tem pouquíssimas chances
+        else:
+            if value >= 6:
+                set_self_and_neighboors_as_chosen(x, y, already_chosen)
+                points.append(Point(x,y))
 
     return points

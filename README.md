@@ -4,10 +4,7 @@
 Implementação do Algoritmo de Bowyer-Watson
 
 TODO:
-* Testar método alternativo para gerar pontos:
-    quanto mais perto da borda, maior a chance de ser escolhido
-    (seria tipo um random com "pesos")
 * Otimizar a busca por vizinhos
-* Melhorar o algoritmo (implementar o fortune?)
-* Refatorar o código
-* Corrigir a remoção das linhas brancas. A erosão está criando "bordas" em alguns lugares
+* Pensar em outro método para tirar as linhas brancas (ou pelo menos atenuar a
+    diferença, pra não ficar tão "gritante")
+* Fazer anti-aliasing para tirar o serrilhamento na imagem final
