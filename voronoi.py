@@ -238,13 +238,28 @@ def bowyer_watson(image, points, NUM_POINTS):
     #   Cria um efeito de gradiente nas arestas. Se uma aresta
     #   é azul claro e outra azul escuro, a parte onde elas se
     #   encostam fica azul médio
-    #out = cv2.blur(out,(5,5))
+    #out = cv2.GaussianBlur(out,(5,5),0)
     # OPCAO 2: filtro mínimo (aka. erosão)
     #   Como os pixels da linha são brancos, pegar o mínimo sempre
     #   vai pegar o valor de alguma célula vizinha. Cria umas bordas
-    #   estranhas, porque está erodindo uma imagem colorida (e não
-    #   sei o que o OpenCV faz nesse caso, só sei que fica ruim)
+    #   estranhas, porque está erodindo uma imagem colorida (o OpenCV
+    #   provavelmente faz cada canal independentemente)
     #out = cv2.erode(out, np.ones((5,5),np.uint8), iterations = 1)
+    # OPCAO 3: Pega a cor que mais aparece nos vizinhos
+    for y in range(height):
+        for x in range(width):
+            if tuple(out[y][x]) == white:
+                # para isso, cria um histograma só com os pixels vizinhos
+                colors = defaultdict(int)
+                for j in range(max(0, y-1), min(height, y+2)):
+                    for i in range(max(0, x-1), min(width,x+2)):
+                        if tuple(out[j][i]) != white:
+                            colors[tuple(out[j][i])] += 1
+                best_color = max(colors, key=colors.get)
+                b = int(color[0])
+                g = int(color[1])
+                r = int(color[2])
+                out[y][x] = [b,g,r]
 
     return out, delaunay, voronoi
 

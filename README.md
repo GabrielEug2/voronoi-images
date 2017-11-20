@@ -7,4 +7,3 @@ TODO:
 * Otimizar a busca por vizinhos
 * Pensar em outro método para tirar as linhas brancas (ou pelo menos atenuar a
     diferença, pra não ficar tão "gritante")
-* Fazer anti-aliasing para tirar o serrilhamento na imagem final

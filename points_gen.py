@@ -4,14 +4,15 @@ from random import randint
 from voronoi import Point
 from collections import defaultdict
 
-# Quando escolher um pixel, já marca os vizinhos como escolhidos,
-# para não escolher 2 pontos um ao lado do outro
-def set_self_and_neighboors_as_chosen(x, y, already_chosen):
+# Quando escolher um pixel, já marca a vizinhança-8 como
+# escolhidos, para não pegar 2 pontos um ao lado do outro
+def set_neighboors_as_chosen(already_chosen, x, y, height, width):
     # +2 porque queremos ir de x-1 até x+1,
     # e range(A,B) vai de A até B-1
-    for j in range(x-1, x+2):
-        for i in range(x-1, x+2):
-            already_chosen[(j,i)] = 1
+    for j in range(max(0, y-1), min(height-1, y+2)):
+        for i in range(max(0, x-1), min(width-1, x+2)):
+            if not (i == x and j == y):
+                already_chosen[(i,j)] = 1
 
 # Gera N pontos aleatórios, retorna um vetor
 # com as coordenadas (x,y) de cada ponto
@@ -31,7 +32,8 @@ def random_points(img, n):
         while already_chosen[(x,y)] == 1:
             x = randint(0, width-1)
             y = randint(0, height-1)
-        set_self_and_neighboors_as_chosen(x, y, already_chosen)
+        already_chosen[(x,y)] = 1
+        set_neighboors_as_chosen(already_chosen, x, y, height, width)
         points.append(Point(x, y))
 
     return points
@@ -59,8 +61,8 @@ def weighted_random(img, n):
             lower_t = higher_t//3
         edges = cv2.add(edges, channel_edges)
 
-    cv2.imshow('image', edges)
-    cv2.waitKey(0)
+    #cv2.imshow('image', edges)
+    #cv2.waitKey(0)
 
     # Dilata as bordas
     kernel = np.ones((21,21), np.uint8)
@@ -69,8 +71,8 @@ def weighted_random(img, n):
     # Perto das bordas = bordas dilatadas - bordas
     close_to_edges = cv2.subtract(dilated_edges, edges)
 
-    cv2.imshow('image', close_to_edges)
-    cv2.waitKey(0)
+    #cv2.imshow('image', close_to_edges)
+    #cv2.waitKey(0)
 
     points = []
     already_chosen = defaultdict(int) #começa com tudo setado em 0
@@ -91,12 +93,14 @@ def weighted_random(img, n):
         # Se estiver perto de alguma borda, tem grandes chances
         if close_to_edges[y][x] == 255:
             if value >= 3:
-                set_self_and_neighboors_as_chosen(x, y, already_chosen)
+                already_chosen[(x,y)] = 1
+                set_neighboors_as_chosen(already_chosen, x, y, height, width)
                 points.append(Point(x,y))
         # Se não estiver perto, tem pouquíssimas chances
         else:
             if value >= 6:
-                set_self_and_neighboors_as_chosen(x, y, already_chosen)
+                already_chosen[(x,y)] = 1
+                set_neighboors_as_chosen(already_chosen, x, y, height, width)
                 points.append(Point(x,y))
 
     return points
