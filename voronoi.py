@@ -129,7 +129,7 @@ class Triangle(object):
 ### https://en.wikipedia.org/wiki/Bowyer%E2%80%93Watson_algorithm
 #####################################################################
 
-def bowyer_watson(image, points, NUM_POINTS):
+def bowyer_watson(image, points):
     height = image.shape[0]
     width = image.shape[1]
 
@@ -143,30 +143,29 @@ def bowyer_watson(image, points, NUM_POINTS):
     triangulation.append(super_tri)
 
     print("Fazendo a triangulação de Delaunay...")
+    # Vai inserindo um ponto de cada vez
     for point in points:
+        # Remove da triangulação os triângulos nos quais o ponto
+        # está dentro do circuncírculo. Eles são triângulos inválidos
         bad_tri = set()
-        # remove da triangulação os triângulos nos quais o ponto
-        # está fora do circuncentro. Eles são triângulos inválidos
         for triangle in triangulation:
             if point.is_in_circuncircle(triangle):
                 bad_tri.add(triangle)
-        polygon = set()
-        # encontra as arestas do poligono, que será
+        # Encontra as arestas do poligono que será
         # usado na próxima triangulação
+        polygon = set()
         for triangle in bad_tri:
             for edge in triangle:
                 if edge.is_unique(bad_tri):
                     polygon.add(edge)
         for triangle in bad_tri:
             triangulation.remove(triangle)
-        # insere os novos triângulos (formados pelas extremidades de
+        # Insere os novos triângulos (formados pelas extremidades de
         # cada aresta do polígono ligadas ao ponto) na triangulação
         for edge in polygon:
             new_tri = Triangle(edge.p1, edge.p2, point)
             triangulation.append(new_tri)
 
-    ### Nao precisa disso pro voronoi, mas é interessante deixar
-    ### a imagem da triangulação para mostrar como funciona
     # Remove os triangulos que contem vertices do super triangulo.
     # O resultado é a triangulação de delaunay
     delaunay_triangles = [tri for tri in triangulation if not tri.contains_super(super_tri)]
@@ -182,8 +181,8 @@ def bowyer_watson(image, points, NUM_POINTS):
     for triangle in triangulation:
         triangle.find_neighboors(triangulation)
 
-    # Liga os circuncentros dos triângulos vizinhos,
-    # gerando o diagrama de voronoi
+    # Liga os circuncentros dos triângulos vizinhos.
+    # O resultado é o diagrama de voronoi
     voronoi = np.zeros((height, width, 3), np.uint8)
     for triangle in triangulation:
         for neighboor in triangle.neighboors:
@@ -193,34 +192,31 @@ def bowyer_watson(image, points, NUM_POINTS):
 
     print("Colorindo células na imagem final...")
     # Acha as células (componentes conexos)
-    voronoi_labels = cv2.cvtColor(voronoi, cv2.COLOR_BGR2GRAY)
-    voronoi_labels = cv2.bitwise_not(voronoi_labels)
-    _, labels = cv2.connectedComponents(voronoi_labels, None, 4)
-    # Arestas recebem NUM_POINTS * 2
-    labels[voronoi_labels == 0] = NUM_POINTS * 2
+    voronoi_inv = cv2.cvtColor(voronoi, cv2.COLOR_BGR2GRAY)
+    voronoi_inv = cv2.bitwise_not(voronoi_inv)
+    _, labels = cv2.connectedComponents(voronoi_inv, None, 4)
 
     # Dict de cells, onde cada célula (identificada pelo label),
-    # tem uma lista de pontos que pertencem a ela e a cor desse
-    # pixel na imagem original.
+    # tem uma lista de pixels que pertencem a ela
     cells = defaultdict(list)
 
-    # Borra a imagem para diminuir a diferença entre as cores
+    # Borra a imagem original para diminuir a diferença entre as cores
     blurred = cv2.medianBlur(image, 21)
 
     # Adiciona cada ponto a sua respectiva célula no dict
     for y in range(height):
         for x in range(width):
-            if labels[y][x] != NUM_POINTS * 2:
+            if labels[y][x] != 0:
                 cells[labels[y][x]].append(Point(x, y, tuple(blurred[y][x])))
 
     # para cada célula, vê a cor que mais aparece na imagem original
     best = defaultdict(tuple)
     for key, points in cells.items():
-        colors = defaultdict(int)
+        hist = defaultdict(int)
         # para isso, cria um histograma só com os pixels daquela célula
         for point in points:
-            colors[point.color] += 1
-        best[key] = max(colors, key=colors.get)
+            hist[point.color] += 1
+        best[key] = max(hist, key=hist.get)
 
     #preenche a imagem final com as cores selecionadas
     out = voronoi.copy()
@@ -233,33 +229,25 @@ def bowyer_watson(image, points, NUM_POINTS):
         r = int(color[2])
         cv2.floodFill(out, None, (x, y), (b, g, r))
 
-    # Tira as linhas brancas
-    # OPCAO 1: borrar
-    #   Cria um efeito de gradiente nas arestas. Se uma aresta
-    #   é azul claro e outra azul escuro, a parte onde elas se
-    #   encostam fica azul médio
+    # Faz algo com as fronteiras entre as células (linhas brancas)
+    # Borrar --> cria um efeito de gradiente nas fronteiras
     #out = cv2.GaussianBlur(out,(5,5),0)
-    # OPCAO 2: filtro mínimo (aka. erosão)
-    #   Como os pixels da linha são brancos, pegar o mínimo sempre
-    #   vai pegar o valor de alguma célula vizinha. Cria umas bordas
-    #   estranhas, porque está erodindo uma imagem colorida (o OpenCV
-    #   provavelmente faz cada canal independentemente)
-    #out = cv2.erode(out, np.ones((5,5),np.uint8), iterations = 1)
-    # OPCAO 3: Pega a cor que mais aparece nos vizinhos
+    # Erosão --> remove as fronteiras
+    #   Fazer uma erosão na mão, olhando os 3 canais de uma vez
+
+    # Tornar as linhas da cor que mais aparece nas células -->
+    #   fronteiras ainda aparecem, mas "se misturam" melhor com a imagem
+    hist = defaultdict(int)
+    for label, color in best.items():
+        hist[color] += 1
+    new_color = max(hist, key=hist.get)
+    b = int(new_color[0])
+    g = int(new_color[1])
+    r = int(new_color[2])
     for y in range(height):
         for x in range(width):
-            if tuple(out[y][x]) == white:
-                # para isso, cria um histograma só com os pixels vizinhos
-                colors = defaultdict(int)
-                for j in range(max(0, y-1), min(height, y+2)):
-                    for i in range(max(0, x-1), min(width,x+2)):
-                        if tuple(out[j][i]) != white:
-                            colors[tuple(out[j][i])] += 1
-                best_color = max(colors, key=colors.get)
-                b = int(color[0])
-                g = int(color[1])
-                r = int(color[2])
-                out[y][x] = [b,g,r]
+            if tuple(voronoi[y][x]) == white:
+                out[y][x] = [b, g, r]
 
     return out, delaunay, voronoi
 
@@ -333,7 +321,7 @@ def main():
 
     start_time = time.time()
     #out = brute_force(image, points)
-    out, delaunay, voronoi = bowyer_watson(image, points, NUM_POINTS)
+    out, delaunay, voronoi = bowyer_watson(image, points)
     print("--- %s seconds ---" % (time.time() - start_time))
 
     for point in points:
