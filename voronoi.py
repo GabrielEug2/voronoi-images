@@ -196,13 +196,12 @@ def bowyer_watson(image, points):
     voronoi_inv = cv2.bitwise_not(voronoi_inv)
     _, labels = cv2.connectedComponents(voronoi_inv, None, 4)
 
-    # Dict de cells, onde cada célula (identificada pelo label),
-    # tem uma lista de pixels que pertencem a ela
-    cells = defaultdict(list)
-
     # Borra a imagem original para diminuir a diferença entre as cores
     blurred = cv2.medianBlur(image, 21)
 
+    # Dict de cells, onde cada célula (identificada pelo label),
+    # tem uma lista de pixels que pertencem a ela
+    cells = defaultdict(list)
     # Adiciona cada ponto a sua respectiva célula no dict
     for y in range(height):
         for x in range(width):
@@ -230,13 +229,11 @@ def bowyer_watson(image, points):
         cv2.floodFill(out, None, (x, y), (b, g, r))
 
     # Faz algo com as fronteiras entre as células (linhas brancas)
-    # Borrar --> cria um efeito de gradiente nas fronteiras
-    #out = cv2.GaussianBlur(out,(5,5),0)
-    # Erosão --> remove as fronteiras
-    #   Fazer uma erosão na mão, olhando os 3 canais de uma vez
 
-    # Tornar as linhas da cor que mais aparece nas células -->
-    #   fronteiras ainda aparecem, mas "se misturam" melhor com a imagem
+    # Tornar as linhas da cor que mais aparece nas células e
+    # fazer anti-aliasing para reduzir serrilhamento -->
+    #   fronteiras ainda aparecem, mas ficam de
+    #   uma cor que combina mais com a imagem
     hist = defaultdict(int)
     for label, color in best.items():
         hist[color] += 1
@@ -248,6 +245,27 @@ def bowyer_watson(image, points):
         for x in range(width):
             if tuple(voronoi[y][x]) == white:
                 out[y][x] = [b, g, r]
+    # Como as células tem cores "maciças", o resultado
+    # é o mesmo que borrar a imagem inteira
+    out = cv2.GaussianBlur(out,(3,3),0)
+
+    # Pegar a cor do primeiro vizinho não-branco -->
+    #   remove as fronteiras, mas é lento e não fica tão bonito
+    '''
+    aux = out.copy()
+    for y in range(height):
+        for x in range(width):
+            if tuple(voronoi[y][x]) == white:
+                colored = False
+                for j in range(max(0, y-1), min(height-1, y+2)):
+                    for i in range(max(0, x-1), min(width-1, x+2)):
+                        if tuple(aux[j][i]) != white:
+                            out[y][x] = aux[j][i]
+                            colored = True
+                            break
+                    if colored:
+                        break
+    '''
 
     return out, delaunay, voronoi
 
