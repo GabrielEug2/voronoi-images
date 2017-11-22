@@ -1,12 +1,14 @@
+from random import randint
+from collections import defaultdict
 import cv2
 import numpy as np
-from random import randint
 from voronoi import Point
-from collections import defaultdict
 
-# Quando escolher um pixel, já marca a vizinhança-8 como
-# escolhidos, para não pegar 2 pontos um ao lado do outro
+
 def set_neighboors_as_chosen(already_chosen, x, y, height, width):
+    """ Quando escolher um pixel, já marca a vizinhança-8 como
+    escolhidos, para não pegar 2 pontos um ao lado do outro
+    """
     # +2 porque queremos ir de x-1 até x+1,
     # e range(A,B) vai de A até B-1
     for j in range(max(0, y-1), min(height-1, y+2)):
@@ -14,9 +16,11 @@ def set_neighboors_as_chosen(already_chosen, x, y, height, width):
             if not (i == x and j == y):
                 already_chosen[(i,j)] = 1
 
-# Gera N pontos aleatórios, retorna um vetor
-# com as coordenadas (x,y) de cada ponto
+
 def random_points(img, n):
+    """ Gera N pontos aleatórios, retorna um vetor
+    com as coordenadas (x,y) de cada ponto
+    """
     height = img.shape[0]
     width = img.shape[1]
 
@@ -38,9 +42,11 @@ def random_points(img, n):
 
     return points
 
-# Gera N pontos aleatórios. Se está perto de uma borda, tem uma chance
-# maior de ser escolhido. Retorna um vetor com as coordenadas (x,y) de cada ponto
+
 def weighted_random(img, n):
+    """ Gera N pontos aleatórios. Se está perto de uma borda, tem uma chance
+    maior de ser escolhido. Retorna um vetor com as coordenadas (x,y) de cada ponto
+    """
     height = img.shape[0]
     width = img.shape[1]
 
