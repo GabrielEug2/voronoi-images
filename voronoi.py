@@ -184,10 +184,10 @@ def bowyer_watson(image, height, width, points):
             cv2.line(delaunay, p1, p2, WHITE, 1)
 
     voronoi = voronoi_diagram(triangulation, height, width)
-
-    out = voronoi_painting(voronoi, image, height, width)
+    out = voronoi_painting(voronoi, image, height, width, triangulation)
 
     return out, delaunay, voronoi
+
 
 def voronoi_diagram(triangulation, height, width):
     """ Cria uma imagem do diagrama de voronoi (somente as arestas)
@@ -209,7 +209,8 @@ def voronoi_diagram(triangulation, height, width):
     
     return voronoi
 
-def voronoi_painting(voronoi, image, height, width):
+
+def voronoi_painting(voronoi, image, height, width, triangulation):
     """ Pinta o diagrama de voronoi com as cores mais
     comuns de cada célula e remove ou disfarça as arestas
     """
@@ -265,32 +266,13 @@ def voronoi_painting(voronoi, image, height, width):
     b = int(new_color[0])
     g = int(new_color[1])
     r = int(new_color[2])
-    for y in range(height):
-        for x in range(width):
-            if tuple(voronoi[y][x]) == WHITE:
-                out[y][x] = [b, g, r]
+    for triangle in triangulation:
+        for neighboor in triangle.neighboors:
+            c1 = (math.ceil(triangle.cx), math.ceil(triangle.cy))
+            c2 = (math.ceil(neighboor.cx), math.ceil(neighboor.cy))
+            cv2.line(out, c1, c2, (b,g,r), 1)
     '''
-    # Como as células tem cores "maciças", o resultado
-    # é o mesmo que borrar a imagem inteira
-    #out = cv2.GaussianBlur(out, (3,3), 0)
 
-    # Pegar a cor do primeiro vizinho não-branco -->
-    #   remove as fronteiras, mas é lento e não fica tão bonito
-    '''
-    aux = out.copy()
-    for y in range(height):
-        for x in range(width):
-            if tuple(voronoi[y][x]) == WHITE:
-                colored = False
-                for j in range(max(0, y-1), min(height-1, y+2)):
-                    for i in range(max(0, x-1), min(width-1, x+2)):
-                        if tuple(aux[j][i]) != WHITE:
-                            out[y][x] = aux[j][i]
-                            colored = True
-                            break
-                    if colored:
-                        break
-    '''
     # Se for pra remover usa filtro da mediana (tem um bom resultado e é rápido)
     out = cv2.medianBlur(out, 11)
 
@@ -366,7 +348,7 @@ def main():
     #show_img(points_img)
     #show_img(delaunay)
     #show_img(voronoi)
-    #show_img(out)
+    show_img(out)
 
     cv2.imwrite(image_name + '-1points.' + extension, points_img)
     cv2.imwrite(image_name + '-2delaunay.' + extension, delaunay)
