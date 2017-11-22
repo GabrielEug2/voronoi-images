@@ -16,7 +16,7 @@ class Point(object):
         self.color = color
 
     def __str__(self):
-        return "Point(%s, %s)"%(self.x,self.y)
+        return "Point({}, {})".format(self.x,self.y)
 
     # Euclidean distance
     def dist(self, p):
@@ -35,7 +35,7 @@ class Edge(object):
         self.p2 = p2
 
     def __str__(self):
-        return "Edge(%s, %s)"%(self.p1,self.p2)
+        return "Edge({}, {})".format(self.p1,self.p2)
 
     def is_equal(self, other):
         # Lembrando que AB = BA, temos que testar os dois casos
@@ -234,6 +234,7 @@ def bowyer_watson(image, points):
     # fazer anti-aliasing para reduzir serrilhamento -->
     #   fronteiras ainda aparecem, mas ficam de
     #   uma cor que combina mais com a imagem
+    '''
     hist = defaultdict(int)
     for label, color in best.items():
         hist[color] += 1
@@ -245,9 +246,10 @@ def bowyer_watson(image, points):
         for x in range(width):
             if tuple(voronoi[y][x]) == white:
                 out[y][x] = [b, g, r]
+    '''
     # Como as células tem cores "maciças", o resultado
     # é o mesmo que borrar a imagem inteira
-    out = cv2.GaussianBlur(out,(3,3),0)
+    #out = cv2.GaussianBlur(out, (3,3), 0)
 
     # Pegar a cor do primeiro vizinho não-branco -->
     #   remove as fronteiras, mas é lento e não fica tão bonito
@@ -266,6 +268,9 @@ def bowyer_watson(image, points):
                     if colored:
                         break
     '''
+
+    # Se for pra remover usa filtro da mediana (tem um bom resultado e é rápido)
+    out = cv2.medianBlur(out, 11)
 
     return out, delaunay, voronoi
 
@@ -325,22 +330,20 @@ def main():
     image_name, extension = image_name.split('.')
 
     # Borra para tirar ruído
-    image = cv2.GaussianBlur(image,(7,7),0)
+    image = cv2.GaussianBlur(image, (7,7), 0)
 
     #points = points_gen.random_points(image, NUM_POINTS)
     points = points_gen.weighted_random(image, NUM_POINTS)
 
     #se quiser salvar ou mostrar uma imagem com os pontos
-#    '''
     points_img = np.zeros((height, width, 1), np.uint8)
     for point in points:
         points_img[point.y][point.x] = 255
-#    '''
 
     start_time = time.time()
     #out = brute_force(image, points)
     out, delaunay, voronoi = bowyer_watson(image, points)
-    print("--- %s seconds ---" % (time.time() - start_time))
+    print("--- {:.2f} s ---".format(time.time() - start_time))
 
     for point in points:
         x = point.x
