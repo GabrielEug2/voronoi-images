@@ -44,12 +44,8 @@ class Edge(object):
         return "Edge({}, {})".format(self.p1, self.p2)
 
     def is_equal(self, other):
-        """ Verifica se duas arestas são iguais
-        lembrando que AB = BA, portanto temos que testar os dois casos
-        """
-        if (self.p1 == other.p1 and self.p2 == other.p2) or (self.p1 == other.p2 and self.p2 == other.p1):
-            return True
-        return False
+        """ Verifica se duas arestas são iguais """
+        return self.p1 == other.p1 and self.p2 == other.p2
 
     def is_unique(self, triangles):
         """ Verifica se nenhum outro triângulo tem essa aresta """
@@ -71,10 +67,12 @@ class Triangle(object):
         self.p1 = p1
         self.p2 = p2
         self.p3 = p3
-        self.edges = [Edge(p1, p2), Edge(p2, p3), Edge(p3, p1)]
+        self.e1 = Edge(p1, p2)
+        self.e2 = Edge(p2, p3)
+        self.e3 = Edge(p1, p3)
+        self.edges = [self.e1, self.e2, self.e3]
         self.cx, self.cy, self.cr = self.circumcenter()
         self.center = Point(self.cx, self.cy)
-        self.neighboors = []
 
     def __iter__(self):
         return iter(self.edges)
@@ -116,23 +114,6 @@ class Triangle(object):
         # Então se não tiver 6, tem algum igual
         return len(pontos) != 6
 
-    def find_neighboors(self, triangulation):
-        """ Procura os vizinhos de cada triangulo """
-        # Para cada aresta do triângulo, procura por uma
-        # igual no resto da triangulação
-        for edge in self.edges:
-            shared = False
-            for triangle in triangulation:
-                if triangle is not self:
-                    for e in triangle:
-                        if e.is_equal(edge):
-                            self.neighboors.append(triangle)
-                            # se achou o vizinho daquele lado, vai para o próximo
-                            shared = True
-                            break
-                if shared:
-                    break
-
 
 def bowyer_watson(image, height, width, points):
     """ Bowyer Watson, algoritmo incremental para geração de 
@@ -148,6 +129,17 @@ def bowyer_watson(image, height, width, points):
 
     triangulation = []
     triangulation.append(super_tri)
+
+    '''
+    Guarda os 2 triângulos vizinhos de cada aresta.
+    Foram usados 2 Points no lugar de um Edge, pois os objetos
+    de cada aresta são diferentes (mesmo com pontos iguais),
+    então eram criadas 2 keys diferentes no dict.
+    '''
+    neighbors = defaultdict(list)
+    neighbors[(super_tri.e1.p1, super_tri.e1.p2)].append(super_tri)
+    neighbors[(super_tri.e2.p1, super_tri.e2.p2)].append(super_tri)
+    neighbors[(super_tri.e3.p1, super_tri.e3.p2)].append(super_tri)
 
     print("Fazendo a triangulação de Delaunay...")
     # Vai inserindo um ponto de cada vez
@@ -167,12 +159,19 @@ def bowyer_watson(image, height, width, points):
                     polygon.add(edge)
         for triangle in bad_tri:
             triangulation.remove(triangle)
+            neighbors[(triangle.e1.p1, triangle.e1.p2)].remove(triangle)
+            neighbors[(triangle.e2.p1, triangle.e2.p2)].remove(triangle)
+            neighbors[(triangle.e3.p1, triangle.e3.p2)].remove(triangle)
+
         # Insere os novos triângulos (formados pelas extremidades de
         # cada aresta do polígono ligadas ao ponto) na triangulação
         for edge in polygon:
             new_tri = Triangle(edge.p1, edge.p2, point)
             triangulation.append(new_tri)
-
+            neighbors[(new_tri.e1.p1, new_tri.e1.p2)].append(new_tri)
+            neighbors[(new_tri.e2.p1, new_tri.e2.p2)].append(new_tri)
+            neighbors[(new_tri.e3.p1, new_tri.e3.p2)].append(new_tri)
+    
     # Remove os triangulos que contem vertices do super triangulo.
     # O resultado é a triangulação de delaunay
     delaunay_triangles = [tri for tri in triangulation if not tri.contains_super(super_tri)]
@@ -183,29 +182,27 @@ def bowyer_watson(image, height, width, points):
             p2 = (edge.p2.x, edge.p2.y)
             cv2.line(delaunay, p1, p2, WHITE, 1)
 
-    voronoi = voronoi_diagram(triangulation, height, width)
+    voronoi = voronoi_diagram(triangulation, neighbors, height, width)
     out = voronoi_painting(voronoi, image, height, width, triangulation)
 
     return out, delaunay, voronoi
 
 
-def voronoi_diagram(triangulation, height, width):
+def voronoi_diagram(triangulation, neighbors, height, width):
     """ Cria uma imagem do diagrama de voronoi (somente as arestas)
     a partir da triangulação de delaunay
     """
     print("Gerando o diagrama de Voronoi...")
-    # Acha os vizinhos de cada triangulo
-    for triangle in triangulation:
-        triangle.find_neighboors(triangulation)
-
     # Liga os circuncentros dos triângulos vizinhos.
     # O resultado é o diagrama de voronoi
     voronoi = np.zeros((height, width, 3), np.uint8)
     for triangle in triangulation:
-        for neighboor in triangle.neighboors:
-            c1 = (math.ceil(triangle.cx), math.ceil(triangle.cy))
-            c2 = (math.ceil(neighboor.cx), math.ceil(neighboor.cy))
-            cv2.line(voronoi, c1, c2, WHITE, 1)
+        for edge in triangle:
+            for neighbor in neighbors[(edge.p1, edge.p2)]:
+                if neighbor is not triangle:
+                    c1 = (math.ceil(triangle.cx), math.ceil(triangle.cy))
+                    c2 = (math.ceil(neighbor.cx), math.ceil(neighbor.cy))
+                    cv2.line(voronoi, c1, c2, WHITE, 1)
     
     return voronoi
 
@@ -258,6 +255,7 @@ def voronoi_painting(voronoi, image, height, width, triangulation):
     # fazer anti-aliasing para reduzir serrilhamento -->
     #   fronteiras ainda aparecem, mas ficam de
     #   uma cor que combina mais com a imagem
+    #### Não funciona mais ###
     '''
     hist = defaultdict(int)
     for label, color in best.items():
@@ -267,9 +265,9 @@ def voronoi_painting(voronoi, image, height, width, triangulation):
     g = int(new_color[1])
     r = int(new_color[2])
     for triangle in triangulation:
-        for neighboor in triangle.neighboors:
+        for neighbor in triangle.neighbors:
             c1 = (math.ceil(triangle.cx), math.ceil(triangle.cy))
-            c2 = (math.ceil(neighboor.cx), math.ceil(neighboor.cy))
+            c2 = (math.ceil(neighbor.cx), math.ceil(neighbor.cy))
             cv2.line(out, c1, c2, (b,g,r), 1)
     '''
 
@@ -349,12 +347,12 @@ def main():
     #show_img(delaunay)
     #show_img(voronoi)
     show_img(out)
-
+    
     cv2.imwrite(image_name + '-1points.' + extension, points_img)
     cv2.imwrite(image_name + '-2delaunay.' + extension, delaunay)
     cv2.imwrite(image_name + '-3voronoi.' + extension, voronoi)
     cv2.imwrite(image_name + '-4out.' + extension, out)
-
+    
 
 if __name__ == "__main__":
     main()
