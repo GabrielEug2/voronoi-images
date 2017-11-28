@@ -116,7 +116,7 @@ class Triangle(object):
 
 
 def bowyer_watson(image, height, width, points):
-    """ Bowyer Watson, algoritmo incremental para geração de 
+    """ Bowyer Watson, algoritmo incremental para geração de
     triangulações de delaunay e diagramas de voronoi
     https://en.wikipedia.org/wiki/Bowyer%E2%80%93Watson_algorithm
     """
@@ -171,7 +171,7 @@ def bowyer_watson(image, height, width, points):
             neighbors[(new_tri.e1.p1, new_tri.e1.p2)].append(new_tri)
             neighbors[(new_tri.e2.p1, new_tri.e2.p2)].append(new_tri)
             neighbors[(new_tri.e3.p1, new_tri.e3.p2)].append(new_tri)
-    
+
     # Remove os triangulos que contem vertices do super triangulo.
     # O resultado é a triangulação de delaunay
     delaunay_triangles = [tri for tri in triangulation if not tri.contains_super(super_tri)]
@@ -203,7 +203,7 @@ def voronoi_diagram(triangulation, neighbors, height, width):
                     c1 = (math.ceil(triangle.cx), math.ceil(triangle.cy))
                     c2 = (math.ceil(neighbor.cx), math.ceil(neighbor.cy))
                     cv2.line(voronoi, c1, c2, WHITE, 1)
-    
+
     return voronoi
 
 
@@ -251,28 +251,29 @@ def voronoi_painting(voronoi, image, height, width, triangulation):
 
     # Faz algo com as fronteiras entre as células (linhas brancas)
 
-    # Tornar as linhas da cor que mais aparece nas células e
-    # fazer anti-aliasing para reduzir serrilhamento -->
+    # 1) Muda a cor das linhas de acordo com as
+    # intensidades da imagem original -->
     #   fronteiras ainda aparecem, mas ficam de
-    #   uma cor que combina mais com a imagem
-    #### Não funciona mais ###
+    #   uma cor que combina melhor com a imagem
+    #   Imagem preta/cinza-escuro --> linhas claras
+    #   Imagem branca/cinza-claro --> linhas pretas
     '''
-    hist = defaultdict(int)
-    for label, color in best.items():
-        hist[color] += 1
-    new_color = max(hist, key=hist.get)
-    b = int(new_color[0])
-    g = int(new_color[1])
-    r = int(new_color[2])
-    for triangle in triangulation:
-        for neighbor in triangle.neighbors:
-            c1 = (math.ceil(triangle.cx), math.ceil(triangle.cy))
-            c2 = (math.ceil(neighbor.cx), math.ceil(neighbor.cy))
-            cv2.line(out, c1, c2, (b,g,r), 1)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    hist = cv2.calcHist([gray],[0],None,[256],[0,256])
+    intens = np.argmax(hist) #indice (intensidade) da posição com o maior valor
+    intens = 255-intens
+    out[np.where((voronoi == [255,255,255]).all(axis = 2))] = [intens,intens,intens]
     '''
 
-    # Se for pra remover usa filtro da mediana (tem um bom resultado e é rápido)
-    out = cv2.medianBlur(out, 11)
+    # 2) Remove as linhas -->
+    #   faz um filtro da mediana, e só substitui o valor
+    #   nos pixels das fronteiras (para não deformar as
+    #   células)
+    blurred = cv2.medianBlur(out, 11)
+    for y in range(height):
+        for x in range(width):
+            if tuple(voronoi[y][x]) == WHITE:
+                out[y][x] = blurred[y][x]
 
     return out
 
@@ -317,7 +318,7 @@ def main():
     width = image.shape[1]
 
     # Separa nome do arquivo e extensão para salvar as
-    # imagens de saída (delaunay, voronoi) com o mesmo nome
+    # imagens de saída com o nome parecido
     if "/" in image_name:
         image_name = image_name.split('/')[-1]
     image_name, extension = image_name.split('.')
@@ -347,12 +348,12 @@ def main():
     #show_img(delaunay)
     #show_img(voronoi)
     show_img(out)
-    
+
     cv2.imwrite(image_name + '-1points.' + extension, points_img)
     cv2.imwrite(image_name + '-2delaunay.' + extension, delaunay)
     cv2.imwrite(image_name + '-3voronoi.' + extension, voronoi)
     cv2.imwrite(image_name + '-4out.' + extension, out)
-    
+
 
 if __name__ == "__main__":
     main()
