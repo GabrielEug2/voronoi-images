@@ -215,21 +215,20 @@ def voronoi_painting(voronoi, image, height, width):
     # Acha as células (componentes conexos)
     voronoi_inv = cv2.cvtColor(voronoi, cv2.COLOR_BGR2GRAY)
     voronoi_inv = cv2.bitwise_not(voronoi_inv)
-    _, labels = cv2.connectedComponents(voronoi_inv, None, 4)
+    #num_labels, labels = cv2.connectedComponents(voronoi_inv, None, 4)
+    components = cv2.connectedComponentsWithStats(voronoi_inv, connectivity=4)
     out = voronoi.copy()
+    labels = components[1]
+    centroids = components[3]
 
-    '''
-    # Faz a mesma coisa que todo o resto dessa função
-    # (tirando a parte de tirar/pintar as arestas) mas é mais lento
-    
-    
+    # Acha os labels e pinta com a cor média de cada célula
     for label in np.unique(labels):
         mask = (labels == label).astype(np.uint8)
-        y,x = np.asarray(np.where(labels == label)).T[0]
+        x, y = map(int, centroids[label])
         mean = cv2.mean(image, mask)
         cv2.floodFill(out, None, (x, y), mean)
-    '''
 
+    '''
     # Borra a imagem original para diminuir a diferença entre as cores
     #blurred = cv2.medianBlur(image, 5)
 
@@ -242,19 +241,6 @@ def voronoi_painting(voronoi, image, height, width):
             if labels[y][x] != 0:
                 cells[labels[y][x]].append(Point(x, y, tuple(map(int, image[y][x]))))
 
-    # para cada célula, vê a cor média na imagem original
-    for key, points in cells.items():
-        bavg = gavg = ravg = area = 0
-        for point in points:
-            bavg += point.color[0]
-            gavg += point.color[1]
-            ravg += point.color[2]
-            area += 1
-            x = point.x
-            y = point.y
-        avg = (bavg//area, gavg//area, ravg//area)
-        cv2.floodFill(out, None, (x, y), avg)
-    '''
     # para cada célula, vê a cor que mais aparece na imagem original
     for key, points in cells.items():
         hist = defaultdict(int)
