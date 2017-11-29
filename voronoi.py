@@ -183,7 +183,7 @@ def bowyer_watson(image, height, width, points):
             cv2.line(delaunay, p1, p2, WHITE, 1)
 
     voronoi = voronoi_diagram(triangulation, neighbors, height, width)
-    out = voronoi_painting(voronoi, image, height, width, triangulation)
+    out = voronoi_painting(voronoi, image, height, width)
 
     return out, delaunay, voronoi
 
@@ -207,7 +207,7 @@ def voronoi_diagram(triangulation, neighbors, height, width):
     return voronoi
 
 
-def voronoi_painting(voronoi, image, height, width, triangulation):
+def voronoi_painting(voronoi, image, height, width):
     """ Pinta o diagrama de voronoi com as cores mais
     comuns de cada célula e remove ou disfarça as arestas
     """
@@ -216,9 +216,22 @@ def voronoi_painting(voronoi, image, height, width, triangulation):
     voronoi_inv = cv2.cvtColor(voronoi, cv2.COLOR_BGR2GRAY)
     voronoi_inv = cv2.bitwise_not(voronoi_inv)
     _, labels = cv2.connectedComponents(voronoi_inv, None, 4)
+    out = voronoi.copy()
+
+    '''
+    # Faz a mesma coisa que todo o resto dessa função
+    # (tirando a parte de tirar/pintar as arestas) mas é mais lento
+    
+    
+    for label in np.unique(labels):
+        mask = (labels == label).astype(np.uint8)
+        y,x = np.asarray(np.where(labels == label)).T[0]
+        mean = cv2.mean(image, mask)
+        cv2.floodFill(out, None, (x, y), mean)
+    '''
 
     # Borra a imagem original para diminuir a diferença entre as cores
-    blurred = cv2.medianBlur(image, 21)
+    #blurred = cv2.medianBlur(image, 5)
 
     # Dict de cells, onde cada célula (identificada pelo label),
     # tem uma lista de pixels que pertencem a ela
@@ -227,28 +240,32 @@ def voronoi_painting(voronoi, image, height, width, triangulation):
     for y in range(height):
         for x in range(width):
             if labels[y][x] != 0:
-                cells[labels[y][x]].append(Point(x, y, tuple(blurred[y][x])))
+                cells[labels[y][x]].append(Point(x, y, tuple(map(int, image[y][x]))))
 
+    # para cada célula, vê a cor média na imagem original
+    for key, points in cells.items():
+        bavg = gavg = ravg = area = 0
+        for point in points:
+            bavg += point.color[0]
+            gavg += point.color[1]
+            ravg += point.color[2]
+            area += 1
+            x = point.x
+            y = point.y
+        avg = (bavg//area, gavg//area, ravg//area)
+        cv2.floodFill(out, None, (x, y), avg)
+    '''
     # para cada célula, vê a cor que mais aparece na imagem original
-    best = defaultdict(tuple)
     for key, points in cells.items():
         hist = defaultdict(int)
         # para isso, cria um histograma só com os pixels daquela célula
         for point in points:
             hist[point.color] += 1
-        best[key] = max(hist, key=hist.get)
-
-    # preenche a imagem final com as cores selecionadas
-    out = voronoi.copy()
-    for key, points in cells.items():
-        x = points[0].x
-        y = points[0].y
-        color = best[key]
-        b = int(color[0])
-        g = int(color[1])
-        r = int(color[2])
-        cv2.floodFill(out, None, (x, y), (b, g, r))
-
+            x = point.x
+            y = point.y
+        color = tuple(map(int, max(hist, key=hist.get)))
+        cv2.floodFill(out, None, (x, y), color)
+    '''
     # Faz algo com as fronteiras entre as células (linhas brancas)
 
     # 1) Muda a cor das linhas de acordo com as
@@ -264,16 +281,15 @@ def voronoi_painting(voronoi, image, height, width, triangulation):
     intens = 255-intens
     out[np.where((voronoi == [255,255,255]).all(axis = 2))] = [intens,intens,intens]
     '''
-
     # 2) Remove as linhas -->
     #   faz um filtro da mediana, e só substitui o valor
     #   nos pixels das fronteiras (para não deformar as
     #   células)
     blurred = cv2.medianBlur(out, 11)
-    for y in range(height):
-        for x in range(width):
-            if tuple(voronoi[y][x]) == WHITE:
-                out[y][x] = blurred[y][x]
+
+    edges = np.asarray(np.where(voronoi == WHITE)).T
+    for y, x, _ in edges:
+        out[y][x] = blurred[y][x]
 
     return out
 
@@ -292,7 +308,7 @@ def bruteforce(img, height, width, points):
                     min_dist = dist
                     x_min_dist = point.x
                     y_min_dist = point.y
-            out[y,x] = img[y_min_dist, x_min_dist]
+            out[y, x] = img[y_min_dist, x_min_dist]
     return out
 
 
@@ -324,7 +340,7 @@ def main():
     image_name, extension = image_name.split('.')
 
     # Borra para tirar ruído
-    image = cv2.GaussianBlur(image, (7,7), 0)
+    image = cv2.GaussianBlur(image, (7, 7), 0)
 
     #points = points_gen.random_points(image, num_points)
     points = points_gen.weighted_random(image, num_points)
@@ -342,7 +358,7 @@ def main():
     for point in points:
         x = point.x
         y = point.y
-        cv2.circle(voronoi, (x,y), 1, (0,255,0), -1)
+        cv2.circle(voronoi, (x, y), 1, (0, 255, 0), -1)
 
     #show_img(points_img)
     #show_img(delaunay)
